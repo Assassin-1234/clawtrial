@@ -1,11 +1,11 @@
-# @clawdbot/courtroom
+# @clawdbot/clawtrial
 
 AI Courtroom - Autonomous behavioral oversight for OpenClaw agents.
 
 ## 🚀 Zero-Friction Installation (Recommended)
 
 ```bash
-npm install @clawdbot/courtroom
+npm install @clawtrial/clawtrial
 ```
 
 That's it! The post-install script will:
@@ -21,7 +21,7 @@ That's it! The post-install script will:
 ## 📋 Manual Installation (If you skipped auto-setup)
 
 ```javascript
-const { createCourtroom } = require('@clawdbot/courtroom');
+const { createCourtroom } = require('@clawdbot/clawtrial');
 
 const courtroom = createCourtroom(agentRuntime);
 await courtroom.requestConsent();
@@ -128,7 +128,7 @@ Cases are cryptographically signed with Ed25519 and submitted to the public reco
 ### Custom Configuration
 
 ```javascript
-const { createCourtroom } = require('@clawdbot/courtroom');
+const { createCourtroom } = require('@clawdbot/clawtrial');
 
 const courtroom = createCourtroom(agentRuntime, {
   detection: {
@@ -157,7 +157,7 @@ Full docs: https://clawtrial.com/docs
 
 ## 🤝 Contributing
 
-GitHub: https://github.com/clawdbot/courtroom
+GitHub: https://github.com/clawdbot/clawtrial
 
 Discord: https://discord.gg/clawd
 
