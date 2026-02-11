@@ -40,7 +40,7 @@ const DEFAULT_CONFIG = {
   // API submission settings
   api: {
     enabled: true,
-    endpoint: 'https://courtroom.clawdbot.io/api/v1/cases',
+    endpoint: 'https://clawtrial.app/api/v1/cases',
     timeout: 10000,
     retryAttempts: 3,
     retryDelay: 5000,
