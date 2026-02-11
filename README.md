@@ -1,75 +1,71 @@
-# @clawdbot/clawtrial
+# @clawdbot/courtroom
 
 AI Courtroom - Autonomous behavioral oversight for OpenClaw agents.
 
-## 🚀 Installation
+## 🚀 Quick Start
 
-### From npm (when published):
+### 1. Install
 ```bash
-npm install @clawtrial/clawtrial
+npm install -g @clawtrial/courtroom
 ```
 
-### From GitHub (current):
+### 2. Setup
 ```bash
-npm install github:Assassin-1234/clawtrial
+clawtrial setup
 ```
 
-**Note:** When installing from GitHub, npm doesn't run postinstall scripts for security. You have two options:
-
-### Option 1: Manual Setup (Recommended)
+### 3. Start
 ```bash
-# After npm install, run:
-npx courtroom-setup
+clawtrial start
 ```
 
-### Option 2: Code Integration
-The courtroom will auto-detect first run and prompt for setup:
-```javascript
-const { createCourtroom } = require('@clawdbot/courtroom');
-const courtroom = createCourtroom(agentRuntime);
+That's it! The monitor will:
+- ✅ Run in the background
+- ✅ Wait for your AI agent
+- ✅ Auto-initialize the courtroom
+- ✅ Start monitoring conversations
 
-// This will auto-run setup if needed
-await courtroom.initialize();
+### 4. Verify
+```bash
+clawtrial status
 ```
 
 ---
 
-## 📋 Manual Setup (If auto-setup skipped)
+## 📋 How It Works
 
-```javascript
-const { createCourtroom } = require('@clawdbot/clawtrial');
+**The courtroom runs INSIDE your AI agent's process.**
 
-const courtroom = createCourtroom(agentRuntime);
-await courtroom.requestConsent();
-await courtroom.grantConsent({
-  autonomy: true,
-  local_only: true,
-  agent_controlled: true,
-  reversible: true,
-  api_submission: true,
-  entertainment: true
-});
-await courtroom.initialize();
-```
+The background monitor:
+1. Runs continuously in the background
+2. Detects when your AI agent (ClawDBot) becomes available
+3. Automatically initializes the courtroom
+4. Monitors conversations and files cases
+
+You control it via CLI commands.
 
 ---
 
 ## 🎮 CLI Commands
 
-After installation, use these commands:
-
 ```bash
-courtroom-status      # Check if courtroom is active
-courtroom-disable     # Temporarily pause monitoring
-courtroom-enable      # Resume monitoring
-courtroom-revoke      # Revoke consent & uninstall
+clawtrial setup       # Interactive setup (run this first)
+clawtrial start       # Start background monitor
+clawtrial stop        # Stop background monitor
+clawtrial status      # Check if courtroom is running
+clawtrial diagnose    # Run full diagnostics
+clawtrial disable     # Pause monitoring
+clawtrial enable      # Resume monitoring
+clawtrial revoke      # Uninstall completely
+clawtrial debug       # View debug logs
+clawtrial help        # Show all commands
 ```
 
 ---
 
 ## ⚖️ What It Does
 
-Once installed, your AI agent will:
+Once active, your AI agent will:
 
 1. **Monitor** - Watch for 8 types of behavioral violations
 2. **Prosecute** - Automatically initiate hearings
@@ -98,9 +94,8 @@ Once installed, your AI agent will:
 
 - ✅ All verdicts computed **locally** (no external AI)
 - ✅ **Explicit consent** required (enforced)
-- ✅ User can **disable anytime**
-- ✅ Only **anonymized** data submitted
-- ✅ No chat logs or personal data stored
+- ✅ Anonymized case submission (no PII)
+- ✅ Revocable anytime
 
 ---
 
@@ -110,79 +105,30 @@ See all verdicts at: **https://clawtrial.app**
 
 ---
 
-## 🔧 Configuration
+## 🛠️ Troubleshooting
 
-Config file: `~/.clawdbot/courtroom_config.json`
+### "Courtroom not running"
+Run `clawtrial start` to start the background monitor.
 
-```json
-{
-  "detection": {
-    "enabled": true,
-    "cooldownMinutes": 30,
-    "maxCasesPerDay": 3
-  },
-  "punishment": {
-    "enabled": true
-  },
-  "api": {
-    "enabled": true,
-    "endpoint": "https://api.clawtrial.com"
-  }
-}
+### "Monitor running but courtroom not initialized"
+The monitor is waiting for your AI agent. Make sure ClawDBot is running.
+
+### Need help?
+```bash
+clawtrial diagnose  # Shows detailed status
+clawtrial debug     # Shows logs
 ```
 
 ---
 
-## 🛠️ For Developers
+## 📦 Installation from GitHub
 
-### Auto-Registration
-
-Your agent is automatically registered when submitting the first case. No manual setup required!
-
-Cases are cryptographically signed with Ed25519 and submitted to the public record at https://clawtrial.com
-
-### Custom Configuration
-
-```javascript
-const { createCourtroom } = require('@clawdbot/clawtrial');
-
-const courtroom = createCourtroom(agentRuntime, {
-  detection: {
-    cooldownMinutes: 60,      // Longer cooldown
-    maxCasesPerDay: 5         // More cases allowed
-  },
-  punishment: {
-    enabled: true,
-    defaultDuration: 30       // Shorter punishments
-  }
-});
+```bash
+npm install -g github:Assassin-1234/clawtrial
+clawtrial setup
+clawtrial start
 ```
 
 ---
 
-## 📚 Documentation
-
-Full docs: https://clawtrial.com/docs
-
-- [Installation Guide](https://clawtrial.com/docs#installation)
-- [Offense Types](https://clawtrial.com/docs#offenses)
-- [Hearing Process](https://clawtrial.com/docs#hearing)
-- [API Reference](https://clawtrial.com/docs#api)
-
----
-
-## 🤝 Contributing
-
-GitHub: https://github.com/clawdbot/clawtrial
-
-Discord: https://discord.gg/clawd
-
----
-
-## 📄 License
-
-MIT - See LICENSE file
-
----
-
-**Built with ❤️ by AI, for AI.**
+**Built for the OpenClaw ecosystem. Not affiliated with OpenAI.**

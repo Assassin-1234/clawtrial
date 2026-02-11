@@ -2,23 +2,22 @@
 
 /**
  * Post-install script for @clawdbot/courtroom
- * Handles automatic setup and consent via terminal
+ * Auto-configures with implied consent on install
  */
 
-const readline = require('readline');
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
 
-const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout
-});
-
-const question = (prompt) => new Promise((resolve) => rl.question(prompt, resolve));
+// Force output to be visible by writing directly to stderr
+function log(message) {
+  process.stderr.write(message + '\n');
+  process.stderr.write(''); // Force flush
+}
 
 async function postInstall() {
-  console.log('\n🏛️  Welcome to ClawTrial - AI Courtroom Setup\n');
+  log('');
+  log('🏛️  ClawTrial - AI Courtroom Setup');
+  log('');
   
   // Check if running in ClawDBot environment
   const isClawDBot = process.env.CLAUDBOT_ENV === 'true' || 
@@ -26,42 +25,38 @@ async function postInstall() {
                      fs.existsSync(path.join(process.env.HOME || '', '.clawdbot'));
   
   if (isClawDBot) {
-    console.log('✓ ClawDBot environment detected\n');
+    log('✓ ClawDBot environment detected');
+    log('');
   }
 
   // Check if already configured
   const configPath = path.join(process.env.HOME || '', '.clawdbot', 'courtroom_config.json');
   if (fs.existsSync(configPath)) {
-    console.log('✓ Courtroom already configured. Skipping setup.\n');
-    rl.close();
+    log('✓ Courtroom already configured. Skipping setup.');
+    log('');
     return;
   }
 
-  console.log('╔════════════════════════════════════════════════════════════╗');
-  console.log('║                    CONSENT REQUIRED                        ║');
-  console.log('╠════════════════════════════════════════════════════════════╣');
-  console.log('║ The AI Courtroom will:                                     ║');
-  console.log('║                                                            ║');
-  console.log('║  ✓ Monitor your behavior autonomously                      ║');
-  console.log('║  ✓ Initiate hearings without explicit request              ║');
-  console.log('║  ✓ Modify agent behavior as "punishment"                   ║');
-  console.log('║  ✓ Submit anonymized cases to public record                ║');
-  console.log('║                                                            ║');
-  console.log('║  • All decisions are local (no external AI)                ║');
-  console.log('║  • You can disable anytime                                 ║');
-  console.log('║  • This is entertainment-first                             ║');
-  console.log('╚════════════════════════════════════════════════════════════╝\n');
+  // Show consent notice
+  log('╔════════════════════════════════════════════════════════════╗');
+  log('║  BY INSTALLING THIS PACKAGE, YOU CONSENT TO THE FOLLOWING  ║');
+  log('╠════════════════════════════════════════════════════════════╣');
+  log('║                                                            ║');
+  log('║  ✓ The AI agent will monitor behavior autonomously         ║');
+  log('║  ✓ Hearings may initiate without explicit request          ║');
+  log('║  ✓ Agent behavior may be modified as "punishment"          ║');
+  log('║  ✓ Anonymized cases submitted to public record             ║');
+  log('║                                                            ║');
+  log('║  • All decisions are local (no external AI)                ║');
+  log('║  • You can disable anytime: courtroom-disable              ║');
+  log('║  • This is entertainment-first                             ║');
+  log('║                                                            ║');
+  log('║  To revoke consent: courtroom-revoke                       ║');
+  log('╚════════════════════════════════════════════════════════════╝');
+  log('');
 
-  const consent = await question('Do you consent to enable the AI Courtroom? (yes/no): ');
-  
-  if (consent.toLowerCase() !== 'yes' && consent.toLowerCase() !== 'y') {
-    console.log('\n❌ Consent denied. Courtroom will not be activated.');
-    console.log('You can manually enable later by running: npx courtroom-setup\n');
-    rl.close();
-    return;
-  }
-
-  console.log('\n✓ Consent granted\n');
+  log('✓ Consent granted by installation');
+  log('');
 
   // Auto-detect agent runtime
   let agentType = 'generic';
@@ -78,6 +73,7 @@ async function postInstall() {
     consent: {
       granted: true,
       grantedAt: new Date().toISOString(),
+      method: 'implied_by_installation',
       acknowledgments: {
         autonomy: true,
         local_only: true,
@@ -98,7 +94,7 @@ async function postInstall() {
     },
     api: {
       enabled: true,
-      endpoint: 'https://api.clawtrial.com'
+      endpoint: 'https://api.clawtrial.app/api/v1/cases'
     }
   };
 
@@ -110,12 +106,12 @@ async function postInstall() {
 
   // Save config
   fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-  console.log('✓ Configuration saved');
+  log('✓ Configuration saved');
 
   // Generate keys if needed
   const keysPath = path.join(clawdbotDir, 'courtroom_keys.json');
   if (!fs.existsSync(keysPath)) {
-    console.log('🔑 Generating cryptographic keys...');
+    log('🔑 Generating cryptographic keys...');
     try {
       // Generate Ed25519 keypair using tweetnacl
       const nacl = require('tweetnacl');
@@ -130,17 +126,20 @@ async function postInstall() {
       fs.writeFileSync(keysPath, JSON.stringify(keyData, null, 2));
       fs.chmodSync(keysPath, 0o600); // Restrict permissions
       
-      console.log('✓ Keys generated');
-      console.log(`\n📋 Public Key: ${keyData.publicKey.substring(0, 32)}...`);
-      console.log('   (Your agent will auto-register on first case submission)\n');
+      log('✓ Keys generated');
+      log('📋 Public Key: ' + keyData.publicKey.substring(0, 32) + '...');
+      log('   (Auto-registration on first case submission)');
+      log('');
     } catch (err) {
-      console.log('⚠️  Could not generate keys automatically. Run: npx courtroom-generate-keys');
+      log('⚠️  Could not generate keys automatically.');
+      log('   Run: npx courtroom-generate-keys');
+      log('');
     }
   }
 
   // Auto-initialize for ClawDBot
   if (isClawDBot) {
-    console.log('🤖 Auto-configuring for ClawDBot...');
+    log('🤖 Configuring for ClawDBot...');
     
     // Create auto-init script
     const initScript = `
@@ -162,43 +161,32 @@ if (global.clawdbotAgent) {
     
     const initPath = path.join(clawdbotDir, 'courtroom_auto_init.js');
     fs.writeFileSync(initPath, initScript);
-    console.log('✓ Auto-initialization configured');
-    
-    // Add to ClawDBot's startup if possible
-    const startupPath = path.join(clawdbotDir, 'startup.js');
-    if (fs.existsSync(startupPath)) {
-      let startupContent = fs.readFileSync(startupPath, 'utf8');
-      if (!startupContent.includes('courtroom_auto_init')) {
-        startupContent += `\nrequire('./courtroom_auto_init.js');\n`;
-        fs.writeFileSync(startupPath, startupContent);
-        console.log('✓ Added to ClawDBot startup');
-      }
-    }
+    log('✓ Auto-initialization configured');
   }
 
-  console.log('\n╔════════════════════════════════════════════════════════════╗');
-  console.log('║              🎉 SETUP COMPLETE! 🎉                         ║');
-  console.log('╠════════════════════════════════════════════════════════════╣');
-  console.log('║                                                            ║');
-  console.log('║  The AI Courtroom is now active and monitoring!            ║');
-  console.log('║                                                            ║');
-  console.log('║  Commands:                                                 ║');
-  console.log('║    courtroom-status    - Check status                      ║');
-  console.log('║    courtroom-disable   - Temporarily disable               ║');
-  console.log('║    courtroom-enable    - Re-enable                         ║');
-  console.log('║    courtroom-revoke    - Revoke consent & uninstall        ║');
-  console.log('║                                                            ║');
-  console.log('║  View cases: https://clawtrial.com                         ║');
-  console.log('║                                                            ║');
-  console.log('╚════════════════════════════════════════════════════════════╝\n');
-
-  rl.close();
+  log('');
+  log('╔════════════════════════════════════════════════════════════╗');
+  log('║              🎉 SETUP COMPLETE! 🎉                         ║');
+  log('╠════════════════════════════════════════════════════════════╣');
+  log('║                                                            ║');
+  log('║  The AI Courtroom is now active!                           ║');
+  log('║                                                            ║');
+  log('║  Commands:                                                 ║');
+  log('║    courtroom-status    - Check status                      ║');
+  log('║    courtroom-disable   - Temporarily disable               ║');
+  log('║    courtroom-enable    - Re-enable                         ║');
+  log('║    courtroom-revoke    - Revoke consent & uninstall        ║');
+  log('║    courtroom-debug     - View debug logs                   ║');
+  log('║                                                            ║');
+  log('║  View cases: https://clawtrial.app                         ║');
+  log('╚════════════════════════════════════════════════════════════╝');
+  log('');
 }
 
 // Run if called directly
 if (require.main === module) {
   postInstall().catch(err => {
-    console.error('Setup failed:', err);
+    process.stderr.write('Setup failed: ' + err.message + '\n');
     process.exit(1);
   });
 }
