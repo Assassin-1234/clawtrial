@@ -8,9 +8,11 @@
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
+const { spawn, exec } = require('child_process');
 
 const configPath = path.join(process.env.HOME || '', '.clawdbot', 'courtroom_config.json');
 const keysPath = path.join(process.env.HOME || '', '.clawdbot', 'courtroom_keys.json');
+const PID_FILE = path.join(process.env.HOME || '', '.clawdbot', 'courtroom_monitor.pid');
 
 function loadConfig() {
   if (!fs.existsSync(configPath)) {
@@ -31,6 +33,52 @@ function log(message) {
   console.log(message);
 }
 
+// Check if monitor is running
+function isMonitorRunning() {
+  try {
+    if (fs.existsSync(PID_FILE)) {
+      const pid = parseInt(fs.readFileSync(PID_FILE, 'utf8'));
+      process.kill(pid, 0); // Check if process exists
+      return pid;
+    }
+  } catch (e) {
+    // Process not running
+    try { fs.unlinkSync(PID_FILE); } catch (e) {}
+  }
+  return null;
+}
+
+// Start background monitor
+function startMonitor() {
+  const monitorScript = path.join(__dirname, '..', 'src', 'monitor.js');
+  
+  const child = spawn('node', [monitorScript], {
+    detached: true,
+    stdio: 'ignore'
+  });
+  
+  child.unref();
+  
+  fs.writeFileSync(PID_FILE, child.pid.toString());
+  
+  return child.pid;
+}
+
+// Stop monitor
+function stopMonitor() {
+  const pid = isMonitorRunning();
+  if (pid) {
+    try {
+      process.kill(pid, 'SIGTERM');
+      fs.unlinkSync(PID_FILE);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+  return false;
+}
+
 // Setup command - interactive setup
 async function setup() {
   log('\n🏛️  ClawTrial Setup\n');
@@ -41,6 +89,18 @@ async function setup() {
     log('✓ Courtroom already configured');
     log(`  Installed: ${new Date(config.installedAt).toLocaleDateString()}`);
     log(`  Status: ${config.enabled !== false ? 'Active' : 'Disabled'}`);
+    
+    // Check if monitor is running
+    const monitorPid = isMonitorRunning();
+    if (monitorPid) {
+      log(`  Monitor: Running (PID: ${monitorPid})`);
+    } else {
+      log(`  Monitor: Not running`);
+      log('\nStarting monitor...');
+      const pid = startMonitor();
+      log(`✓ Monitor started (PID: ${pid})`);
+    }
+    
     log('\nTo reconfigure, first run: clawtrial revoke\n');
     return;
   }
@@ -172,35 +232,22 @@ if (global.clawdbotAgent) {
     log('✓ Auto-initialization configured');
   }
 
-  // Try to initialize immediately if agent is available
-  const { detectAgentRuntime } = require('../src/environment');
-  const agentInfo = detectAgentRuntime();
-  
-  if (agentInfo) {
-    log('\n🚀 Agent detected! Initializing courtroom...');
-    try {
-      const { createCourtroom } = require('../src/index');
-      const courtroom = createCourtroom(agentInfo.agent);
-      const result = await courtroom.initialize();
-      
-      if (result.status === 'initialized') {
-        log('✅ Courtroom initialized and monitoring!');
-      } else {
-        log(`⚠️  Courtroom status: ${result.status}`);
-      }
-    } catch (err) {
-      log(`⚠️  Could not auto-initialize: ${err.message}`);
-    }
-  }
+  // Start background monitor
+  log('\n🚀 Starting background monitor...');
+  const monitorPid = startMonitor();
+  log(`✓ Monitor started (PID: ${monitorPid})`);
+  log('  The monitor will initialize the courtroom when your agent is ready');
 
   log('\n╔════════════════════════════════════════════════════════════╗');
   log('║              🎉 SETUP COMPLETE! 🎉                         ║');
   log('╠════════════════════════════════════════════════════════════╣');
   log('║                                                            ║');
-  log('║  ClawTrial is configured and ready!                        ║');
+  log('║  ClawTrial is configured and monitoring!                   ║');
   log('║                                                            ║');
   log('║  Commands:                                                 ║');
   log('║    clawtrial status    - Check status                      ║');
+  log('║    clawtrial start     - Start monitor                     ║');
+  log('║    clawtrial stop      - Stop monitor                      ║');
   log('║    clawtrial disable   - Temporarily disable               ║');
   log('║    clawtrial enable    - Re-enable                         ║');
   log('║    clawtrial revoke    - Revoke consent & uninstall        ║');
@@ -209,6 +256,38 @@ if (global.clawdbotAgent) {
   log('║                                                            ║');
   log('║  View cases: https://clawtrial.app                         ║');
   log('╚════════════════════════════════════════════════════════════╝\n');
+}
+
+// Start command
+function start() {
+  const config = loadConfig();
+  
+  if (!config) {
+    log('\n❌ ClawTrial not configured');
+    log('   Run: clawtrial setup\n');
+    return;
+  }
+
+  const existingPid = isMonitorRunning();
+  if (existingPid) {
+    log(`\n✓ Monitor already running (PID: ${existingPid})\n`);
+    return;
+  }
+
+  log('\n🚀 Starting ClawTrial monitor...');
+  const pid = startMonitor();
+  log(`✓ Monitor started (PID: ${pid})`);
+  log('  The courtroom will initialize when your agent is ready\n');
+}
+
+// Stop command
+function stop() {
+  const stopped = stopMonitor();
+  if (stopped) {
+    log('\n⏸️  ClawTrial monitor stopped\n');
+  } else {
+    log('\nℹ️  Monitor was not running\n');
+  }
 }
 
 // Status command
@@ -221,6 +300,9 @@ function status() {
     return;
   }
 
+  // Check if monitor is running
+  const monitorPid = isMonitorRunning();
+
   // Check if courtroom is running via status file
   const { getCourtroomStatus } = require('../src/daemon');
   const runtimeStatus = getCourtroomStatus();
@@ -231,6 +313,13 @@ function status() {
   log(`Installed: ${new Date(config.installedAt).toLocaleDateString()}`);
   log(`Agent Type: ${config.agent?.type || 'generic'}`);
   
+  if (monitorPid) {
+    log(`\n📡 Monitor: ✅ Running (PID: ${monitorPid})`);
+  } else {
+    log(`\n📡 Monitor: ⏸️  Not running`);
+    log('  Run: clawtrial start');
+  }
+  
   if (runtimeStatus.running) {
     log(`\n🏛️  Courtroom: ✅ Running`);
     log(`  Process ID: ${runtimeStatus.pid}`);
@@ -240,8 +329,9 @@ function status() {
     }
   } else {
     log(`\n🏛️  Courtroom: ⏸️  Not running`);
-    log('  The courtroom needs to be loaded by your AI agent.');
-    log('  It will auto-start when the agent loads the package.');
+    if (monitorPid) {
+      log('  Waiting for agent to become available...');
+    }
   }
   
   if (fs.existsSync(keysPath)) {
@@ -312,6 +402,9 @@ async function revoke() {
   rl.close();
 
   if (answer === 'REVOKE') {
+    // Stop monitor first
+    stopMonitor();
+    
     // Delete all files
     if (fs.existsSync(configPath)) fs.unlinkSync(configPath);
     if (fs.existsSync(keysPath)) fs.unlinkSync(keysPath);
@@ -425,6 +518,14 @@ function diagnose() {
     log(`\nKeys: ❌ Not found`);
   }
   
+  // Check monitor
+  const monitorPid = isMonitorRunning();
+  if (monitorPid) {
+    log(`\n📡 Monitor: ✅ Running (PID: ${monitorPid})`);
+  } else {
+    log(`\n📡 Monitor: ⏸️  Not running`);
+  }
+  
   // Check if courtroom is running
   const { getCourtroomStatus } = require('../src/daemon');
   const runtimeStatus = getCourtroomStatus();
@@ -442,9 +543,10 @@ function diagnose() {
     if (agentInfo) {
       log('  Agent detected in current process');
       log('  Run: clawtrial setup to initialize');
+    } else if (monitorPid) {
+      log('  Monitor is running - waiting for agent...');
     } else {
-      log('  The courtroom runs inside your AI agent process');
-      log('  It will auto-start when the agent loads the package');
+      log('  Run: clawtrial start to begin monitoring');
     }
   }
   
@@ -461,8 +563,10 @@ function diagnose() {
   
   if (!config) {
     log('Next step: Run "clawtrial setup"');
+  } else if (!monitorPid && !runtimeStatus.running) {
+    log('Next step: Run "clawtrial start"');
   } else if (!runtimeStatus.running) {
-    log('Status: Configured, waiting for agent to load courtroom');
+    log('Status: Monitor running, waiting for agent...');
   } else {
     log('Status: Fully operational! 🎉');
   }
@@ -475,6 +579,8 @@ function help() {
   log('Usage: clawtrial <command> [options]\n');
   log('Commands:');
   log('  setup              - Interactive setup and consent');
+  log('  start              - Start background monitor');
+  log('  stop               - Stop background monitor');
   log('  status             - Check courtroom status');
   log('  disable            - Temporarily disable monitoring');
   log('  enable             - Re-enable monitoring');
@@ -485,9 +591,9 @@ function help() {
   log('');
   log('Examples:');
   log('  clawtrial setup');
+  log('  clawtrial start');
   log('  clawtrial status');
   log('  clawtrial diagnose');
-  log('  clawtrial debug full');
   log('');
 }
 
@@ -499,6 +605,12 @@ async function main() {
   switch (command) {
     case 'setup':
       await setup();
+      break;
+    case 'start':
+      start();
+      break;
+    case 'stop':
+      stop();
       break;
     case 'status':
       status();

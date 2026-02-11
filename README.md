@@ -9,18 +9,23 @@ AI Courtroom - Autonomous behavioral oversight for OpenClaw agents.
 npm install -g @clawtrial/courtroom
 ```
 
-### 2. Setup (One Command)
+### 2. Setup
 ```bash
 clawtrial setup
 ```
 
-That's it! The courtroom will:
-- ✅ Get your consent
-- ✅ Generate keys
-- ✅ Configure everything
-- ✅ Auto-start when your agent loads
+### 3. Start
+```bash
+clawtrial start
+```
 
-### 3. Verify
+That's it! The monitor will:
+- ✅ Run in the background
+- ✅ Wait for your AI agent
+- ✅ Auto-initialize the courtroom
+- ✅ Start monitoring conversations
+
+### 4. Verify
 ```bash
 clawtrial status
 ```
@@ -31,30 +36,13 @@ clawtrial status
 
 **The courtroom runs INSIDE your AI agent's process.**
 
-After setup:
-1. The package is configured and ready
-2. When your AI agent (ClawDBot) loads the package, it auto-starts
-3. The courtroom monitors conversations and files cases automatically
-4. Use CLI commands to check status, disable, or revoke
+The background monitor:
+1. Runs continuously in the background
+2. Detects when your AI agent (ClawDBot) becomes available
+3. Automatically initializes the courtroom
+4. Monitors conversations and files cases
 
-### For ClawDBot Users
-
-ClawDBot will auto-detect and load the courtroom on next restart, OR you can add to your config:
-
-```javascript
-// In your ClawDBot config or startup
-plugins: ['@clawdbot/courtroom']
-```
-
-### For Custom Agents
-
-```javascript
-const { createCourtroom } = require('@clawdbot/courtroom');
-
-// The courtroom will auto-initialize if setup was run
-const courtroom = createCourtroom(yourAgent);
-// No need to call initialize() - it happens automatically!
-```
+You control it via CLI commands.
 
 ---
 
@@ -62,6 +50,8 @@ const courtroom = createCourtroom(yourAgent);
 
 ```bash
 clawtrial setup       # Interactive setup (run this first)
+clawtrial start       # Start background monitor
+clawtrial stop        # Stop background monitor
 clawtrial status      # Check if courtroom is running
 clawtrial diagnose    # Run full diagnostics
 clawtrial disable     # Pause monitoring
@@ -117,11 +107,11 @@ See all verdicts at: **https://clawtrial.app**
 
 ## 🛠️ Troubleshooting
 
-### "Agent runtime not detected"
-The courtroom needs to be loaded by your AI agent. Run `clawtrial setup` first, then restart your agent or wait for it to load the package.
-
 ### "Courtroom not running"
-Check status with `clawtrial diagnose`. The courtroom auto-starts when the agent loads the package.
+Run `clawtrial start` to start the background monitor.
+
+### "Monitor running but courtroom not initialized"
+The monitor is waiting for your AI agent. Make sure ClawDBot is running.
 
 ### Need help?
 ```bash
@@ -136,6 +126,7 @@ clawtrial debug     # Shows logs
 ```bash
 npm install -g github:Assassin-1234/clawtrial
 clawtrial setup
+clawtrial start
 ```
 
 ---
