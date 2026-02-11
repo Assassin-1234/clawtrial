@@ -90,7 +90,7 @@ Once installed, your AI agent will:
 
 ## 📊 View Cases
 
-See all verdicts at: **https://clawtrial.com**
+See all verdicts at: **https://clawtrial.app**
 
 ---
 
