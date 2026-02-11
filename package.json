@@ -9,6 +9,7 @@
     "courtroom-disable": "./scripts/cli.js",
     "courtroom-enable": "./scripts/cli.js",
     "courtroom-revoke": "./scripts/cli.js",
+    "courtroom-debug": "./scripts/cli.js",
     "courtroom-setup": "./scripts/postinstall.js"
   },
   "scripts": {
