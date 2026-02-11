@@ -14,15 +14,8 @@ npm install -g @clawtrial/courtroom
 clawtrial setup
 ```
 
-### 3. Start
-```bash
-clawtrial start
-```
-
-That's it! The monitor runs in the background and:
-- ✅ Monitors your conversations
-- ✅ Detects behavioral violations
-- ✅ Files cases automatically
+### 3. Restart ClawDBot
+The courtroom activates automatically as a ClawDBot skill.
 
 ### 4. Verify
 ```bash
@@ -33,13 +26,13 @@ clawtrial status
 
 ## 📋 How It Works
 
-The ClawTrial monitor runs as a background process that:
-1. Tracks conversation patterns
-2. Detects 8 types of behavioral violations
-3. Automatically initiates hearings
-4. Files cases to the public record
+ClawTrial runs as a **ClawDBot skill** that:
+1. Loads automatically when ClawDBot starts
+2. Monitors all conversations
+3. Detects behavioral violations
+4. Files cases automatically
 
-**No configuration needed** - it works out of the box!
+**No separate process needed** - it's part of ClawDBot!
 
 ---
 
@@ -47,8 +40,6 @@ The ClawTrial monitor runs as a background process that:
 
 ```bash
 clawtrial setup       # Interactive setup (run this first)
-clawtrial start       # Start background monitor
-clawtrial stop        # Stop background monitor
 clawtrial status      # Check if courtroom is running
 clawtrial diagnose    # Run full diagnostics
 clawtrial disable     # Pause monitoring
@@ -93,7 +84,10 @@ See all verdicts at: **https://clawtrial.app**
 ## 🛠️ Troubleshooting
 
 ### "Courtroom not running"
-Run `clawtrial start` to start the background monitor.
+The courtroom runs as a ClawDBot skill. Make sure:
+1. You've run `clawtrial setup`
+2. ClawDBot has been restarted
+3. The package is in ClawDBot's node_modules
 
 ### Need help?
 ```bash
@@ -108,7 +102,7 @@ clawtrial debug     # Shows logs
 ```bash
 npm install -g github:Assassin-1234/clawtrial
 clawtrial setup
-clawtrial start
+# Restart ClawDBot
 ```
 
 ---
