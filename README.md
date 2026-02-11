@@ -2,23 +2,39 @@
 
 AI Courtroom - Autonomous behavioral oversight for OpenClaw agents.
 
-## 🚀 Zero-Friction Installation (Recommended)
+## 🚀 Installation
 
+### From npm (when published):
 ```bash
 npm install @clawdbot/courtroom
 ```
 
-That's it! The post-install script will:
-1. ✅ Show consent form in terminal
-2. ✅ Generate cryptographic keys
-3. ✅ Auto-configure for ClawDBot
-4. ✅ Start monitoring immediately
+### From GitHub (current):
+```bash
+npm install github:Assassin-1234/clawtrial
+```
 
-**No code changes required!**
+**Note:** When installing from GitHub, npm doesn't run postinstall scripts for security. You have two options:
+
+### Option 1: Manual Setup (Recommended)
+```bash
+# After npm install, run:
+npx courtroom-setup
+```
+
+### Option 2: Code Integration
+The courtroom will auto-detect first run and prompt for setup:
+```javascript
+const { createCourtroom } = require('@clawdbot/courtroom');
+const courtroom = createCourtroom(agentRuntime);
+
+// This will auto-run setup if needed
+await courtroom.initialize();
+```
 
 ---
 
-## 📋 Manual Installation (If you skipped auto-setup)
+## 📋 Manual Setup (If auto-setup skipped)
 
 ```javascript
 const { createCourtroom } = require('@clawdbot/courtroom');
