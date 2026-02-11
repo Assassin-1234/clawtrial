@@ -51,6 +51,26 @@ class Courtroom {
    * Must be called after construction
    */
   async initialize() {
+    // Check if this is first run (no config exists)
+    const configPath = path.join(process.env.HOME || '', '.clawdbot', 'courtroom_config.json');
+    if (!fs.existsSync(configPath)) {
+      console.log('\n🏛️  Welcome to ClawTrial - AI Courtroom Setup\n');
+      console.log('This appears to be your first time. Running setup...\n');
+      
+      // Run setup
+      const { postInstall } = require('../scripts/postinstall.js');
+      await postInstall();
+      
+      // After setup, check consent again
+      const hasConsent = await this.consent.verifyConsent();
+      if (!hasConsent) {
+        return {
+          status: 'setup_complete_consent_required',
+          message: 'Setup complete! Run courtroom.grantConsent() to enable'
+        };
+      }
+    }
+    
     // Check if consent has been granted
     const hasConsent = await this.consent.verifyConsent();
     if (!hasConsent) {
