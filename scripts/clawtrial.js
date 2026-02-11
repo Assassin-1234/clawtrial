@@ -119,6 +119,40 @@ async function setup() {
   saveConfig(config);
   log('✓ Configuration saved');
 
+  // Register as ClawDBot skill
+  log('🔗 Registering with ClawDBot...');
+  try {
+    const skillsDir = path.join(process.env.HOME || '', '.clawdbot', 'skills');
+    const skillLinkPath = path.join(skillsDir, 'courtroom');
+    
+    // Create skills directory if needed
+    if (!fs.existsSync(skillsDir)) {
+      fs.mkdirSync(skillsDir, { recursive: true });
+    }
+    
+    // Remove old link if exists
+    if (fs.existsSync(skillLinkPath)) {
+      try { fs.unlinkSync(skillLinkPath); } catch (e) {}
+    }
+    
+    // Find the actual package path
+    let packagePath;
+    try {
+      packagePath = require.resolve('@clawdbot/courtroom/package.json').replace('/package.json', '');
+    } catch (e) {
+      // Fallback to finding it relative to this script
+      packagePath = path.join(__dirname, '..');
+    }
+    
+    // Create symlink
+    fs.symlinkSync(packagePath, skillLinkPath, 'dir');
+    
+    log('✓ Registered as ClawDBot skill');
+  } catch (err) {
+    log('⚠️  Could not auto-register: ' + err.message);
+    log('   You may need to restart ClawDBot manually.');
+  }
+
   // Generate keys
   if (!fs.existsSync(keysPath)) {
     log('🔑 Generating cryptographic keys...');
