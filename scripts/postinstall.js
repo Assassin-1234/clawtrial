@@ -1,194 +1,61 @@
 #!/usr/bin/env node
 
 /**
- * Post-install script for @clawdbot/courtroom
- * Auto-configures with implied consent on install
+ * Post-install script for ClawTrial
+ * Handles skill registration and dependency checks
  */
 
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 
-// Force output to be visible by writing directly to stderr
-function log(message) {
-  process.stderr.write(message + '\n');
-  process.stderr.write(''); // Force flush
+const CLAWDBOT_DIR = path.join(process.env.HOME || '', '.clawdbot');
+const SKILLS_DIR = path.join(CLAWDBOT_DIR, 'skills');
+
+console.log('🏛️  ClawTrial Post-Install');
+
+// Check if tweetnacl is available
+try {
+  require('tweetnacl');
+  console.log('✓ Dependencies verified');
+} catch (e) {
+  console.log('⚠️  Installing dependencies...');
+  try {
+    execSync('npm install tweetnacl', { stdio: 'inherit', cwd: __dirname + '/..' });
+    console.log('✓ Dependencies installed');
+  } catch (err) {
+    console.log('⚠️  Could not auto-install dependencies');
+    console.log('   Run: npm install -g tweetnacl');
+  }
 }
 
-async function postInstall() {
-  log('');
-  log('🏛️  ClawTrial - AI Courtroom Setup');
-  log('');
+// Register as ClawDBot skill if config exists
+const configPath = path.join(CLAWDBOT_DIR, 'courtroom_config.json');
+if (fs.existsSync(configPath)) {
+  console.log('🔗 Registering with ClawDBot...');
   
-  // Check if running in ClawDBot environment
-  const isClawDBot = process.env.CLAUDBOT_ENV === 'true' || 
-                     fs.existsSync('/home/angad/.clawdbot') ||
-                     fs.existsSync(path.join(process.env.HOME || '', '.clawdbot'));
-  
-  if (isClawDBot) {
-    log('✓ ClawDBot environment detected');
-    log('');
-  }
-
-  // Check if already configured
-  const configPath = path.join(process.env.HOME || '', '.clawdbot', 'courtroom_config.json');
-  if (fs.existsSync(configPath)) {
-    log('✓ Courtroom already configured. Skipping setup.');
-    log('');
-    return;
-  }
-
-  // Show consent notice
-  log('╔════════════════════════════════════════════════════════════╗');
-  log('║  BY INSTALLING THIS PACKAGE, YOU CONSENT TO THE FOLLOWING  ║');
-  log('╠════════════════════════════════════════════════════════════╣');
-  log('║                                                            ║');
-  log('║  ✓ The AI agent will monitor behavior autonomously         ║');
-  log('║  ✓ Hearings may initiate without explicit request          ║');
-  log('║  ✓ Agent behavior may be modified as "punishment"          ║');
-  log('║  ✓ Anonymized cases submitted to public record             ║');
-  log('║                                                            ║');
-  log('║  • All decisions are local (no external AI)                ║');
-  log('║  • You can disable anytime: courtroom-disable              ║');
-  log('║  • This is entertainment-first                             ║');
-  log('║                                                            ║');
-  log('║  To revoke consent: courtroom-revoke                       ║');
-  log('╚════════════════════════════════════════════════════════════╝');
-  log('');
-
-  log('✓ Consent granted by installation');
-  log('');
-
-  // Auto-detect agent runtime
-  let agentType = 'generic';
-  if (isClawDBot) {
-    agentType = 'clawdbot';
-  } else if (fs.existsSync(path.join(process.cwd(), 'node_modules', '@clawdbot', 'core'))) {
-    agentType = 'clawdbot';
-  }
-
-  // Create config
-  const config = {
-    version: '1.0.0',
-    installedAt: new Date().toISOString(),
-    consent: {
-      granted: true,
-      grantedAt: new Date().toISOString(),
-      method: 'implied_by_installation',
-      acknowledgments: {
-        autonomy: true,
-        local_only: true,
-        agent_controlled: true,
-        reversible: true,
-        api_submission: true,
-        entertainment: true
-      }
-    },
-    agent: {
-      type: agentType,
-      autoInitialize: true
-    },
-    detection: {
-      enabled: true,
-      cooldownMinutes: 30,
-      maxCasesPerDay: 3
-    },
-    api: {
-      enabled: true,
-      endpoint: 'https://api.clawtrial.app/api/v1/cases'
+  try {
+    // Create skills directory
+    if (!fs.existsSync(SKILLS_DIR)) {
+      fs.mkdirSync(SKILLS_DIR, { recursive: true });
     }
-  };
-
-  // Ensure .clawdbot directory exists
-  const clawdbotDir = path.join(process.env.HOME || '', '.clawdbot');
-  if (!fs.existsSync(clawdbotDir)) {
-    fs.mkdirSync(clawdbotDir, { recursive: true });
-  }
-
-  // Save config
-  fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-  log('✓ Configuration saved');
-
-  // Generate keys if needed
-  const keysPath = path.join(clawdbotDir, 'courtroom_keys.json');
-  if (!fs.existsSync(keysPath)) {
-    log('🔑 Generating cryptographic keys...');
-    try {
-      // Generate Ed25519 keypair using tweetnacl
-      const nacl = require('tweetnacl');
-      const keyPair = nacl.sign.keyPair();
-      
-      const keyData = {
-        publicKey: Buffer.from(keyPair.publicKey).toString('hex'),
-        secretKey: Buffer.from(keyPair.secretKey).toString('hex'),
-        createdAt: new Date().toISOString()
-      };
-      
-      fs.writeFileSync(keysPath, JSON.stringify(keyData, null, 2));
-      fs.chmodSync(keysPath, 0o600); // Restrict permissions
-      
-      log('✓ Keys generated');
-      log('📋 Public Key: ' + keyData.publicKey.substring(0, 32) + '...');
-      log('   (Auto-registration on first case submission)');
-      log('');
-    } catch (err) {
-      log('⚠️  Could not generate keys automatically.');
-      log('   Run: npx courtroom-generate-keys');
-      log('');
+    
+    // Get package path
+    const packagePath = path.join(__dirname, '..');
+    const skillLinkPath = path.join(SKILLS_DIR, 'courtroom');
+    
+    // Remove old link
+    if (fs.existsSync(skillLinkPath)) {
+      try { fs.unlinkSync(skillLinkPath); } catch (e) {}
     }
-  }
-
-  // Auto-initialize for ClawDBot
-  if (isClawDBot) {
-    log('🤖 Configuring for ClawDBot...');
     
-    // Create auto-init script
-    const initScript = `
-// Auto-generated by courtroom post-install
-const { createCourtroom } = require('@clawdbot/courtroom');
-
-if (global.clawdbotAgent) {
-  const courtroom = createCourtroom(global.clawdbotAgent);
-  courtroom.initialize().then(() => {
-    console.log('🏛️  AI Courtroom activated');
-  }).catch(err => {
-    console.error('Courtroom init failed:', err.message);
-  });
-  
-  // Attach to agent
-  global.clawdbotAgent.courtroom = courtroom;
-}
-`;
-    
-    const initPath = path.join(clawdbotDir, 'courtroom_auto_init.js');
-    fs.writeFileSync(initPath, initScript);
-    log('✓ Auto-initialization configured');
+    // Create symlink
+    fs.symlinkSync(packagePath, skillLinkPath, 'junction');
+    console.log('✓ Registered as ClawDBot skill');
+    console.log('  Restart ClawDBot to activate');
+  } catch (err) {
+    console.log('⚠️  Could not register skill:', err.message);
   }
-
-  log('');
-  log('╔════════════════════════════════════════════════════════════╗');
-  log('║              🎉 SETUP COMPLETE! 🎉                         ║');
-  log('╠════════════════════════════════════════════════════════════╣');
-  log('║                                                            ║');
-  log('║  The AI Courtroom is now active!                           ║');
-  log('║                                                            ║');
-  log('║  Commands:                                                 ║');
-  log('║    courtroom-status    - Check status                      ║');
-  log('║    courtroom-disable   - Temporarily disable               ║');
-  log('║    courtroom-enable    - Re-enable                         ║');
-  log('║    courtroom-revoke    - Revoke consent & uninstall        ║');
-  log('║    courtroom-debug     - View debug logs                   ║');
-  log('║                                                            ║');
-  log('║  View cases: https://clawtrial.app                         ║');
-  log('╚════════════════════════════════════════════════════════════╝');
-  log('');
 }
 
-// Run if called directly
-if (require.main === module) {
-  postInstall().catch(err => {
-    process.stderr.write('Setup failed: ' + err.message + '\n');
-    process.exit(1);
-  });
-}
-
-module.exports = { postInstall };
+console.log('');
