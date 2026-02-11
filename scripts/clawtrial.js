@@ -184,6 +184,7 @@ if (global.clawdbotAgent) {
   log('║    clawtrial enable    - Re-enable                         ║');
   log('║    clawtrial revoke    - Revoke consent & uninstall        ║');
   log('║    clawtrial debug     - View debug logs                   ║');
+  log('║    clawtrial diagnose  - Run diagnostics                   ║');
   log('║                                                            ║');
   log('║  View cases: https://clawtrial.app                         ║');
   log('╚════════════════════════════════════════════════════════════╝\n');
@@ -347,6 +348,79 @@ function debug(subcommand) {
   }
 }
 
+// Diagnose command
+function diagnose() {
+  log('\n🏛️  ClawTrial Diagnostics\n');
+  log('========================\n');
+  
+  // Check Node version
+  const nodeVersion = process.version;
+  const majorVersion = parseInt(nodeVersion.slice(1).split('.')[0]);
+  log(`Node.js version: ${nodeVersion} ${majorVersion >= 18 ? '✅' : '❌ (needs >= 18)'}`);
+  
+  // Check environment
+  const { checkEnvironment, detectAgentRuntime } = require('../src/environment');
+  const env = checkEnvironment();
+  log(`\nEnvironment: ${env.valid ? '✅ Valid' : '❌ Issues found'}`);
+  if (!env.valid) {
+    env.issues.forEach(issue => log(`  ❌ ${issue}`));
+  }
+  
+  // Check config
+  const config = loadConfig();
+  if (config) {
+    log(`\nConfig: ✅ Found`);
+    log(`  Installed: ${new Date(config.installedAt).toLocaleDateString()}`);
+    log(`  Consent: ${config.consent?.granted ? '✅ Granted' : '❌ Not granted'}`);
+    log(`  Status: ${config.enabled !== false ? '✅ Enabled' : '⏸️  Disabled'}`);
+  } else {
+    log(`\nConfig: ❌ Not found`);
+    log('  Run: clawtrial setup');
+  }
+  
+  // Check keys
+  if (fs.existsSync(keysPath)) {
+    log(`\nKeys: ✅ Found`);
+    const keys = JSON.parse(fs.readFileSync(keysPath, 'utf8'));
+    log(`  Public Key: ${keys.publicKey.substring(0, 32)}...`);
+  } else {
+    log(`\nKeys: ❌ Not found`);
+  }
+  
+  // Check agent runtime
+  const agentInfo = detectAgentRuntime();
+  if (agentInfo) {
+    log(`\nAgent Runtime: ✅ ${agentInfo.type}`);
+  } else {
+    log(`\nAgent Runtime: ❌ Not detected`);
+    log('  The courtroom needs an AI agent to monitor.');
+    log('  If using ClawDBot, make sure it\'s running.');
+    log('  For custom agents, pass the agent to createCourtroom(agent).');
+  }
+  
+  // Check debug logs
+  const debugPath = path.join(process.env.HOME || '', '.clawdbot', 'courtroom_debug.log');
+  if (fs.existsSync(debugPath)) {
+    const logs = fs.readFileSync(debugPath, 'utf8').split('\n').filter(Boolean);
+    log(`\nDebug Logs: ✅ ${logs.length} entries`);
+  } else {
+    log(`\nDebug Logs: ℹ️  None yet (created when active)`);
+  }
+  
+  log('\n========================\n');
+  
+  if (!config) {
+    log('Next step: Run "clawtrial setup"');
+  } else if (!agentInfo) {
+    log('Next step: Ensure your AI agent is running');
+  } else if (config.enabled === false) {
+    log('Next step: Run "clawtrial enable"');
+  } else {
+    log('Status: Ready to monitor! 🎉');
+  }
+  log('');
+}
+
 // Help command
 function help() {
   log('\n🏛️  ClawTrial - AI Courtroom for Agents\n');
@@ -358,11 +432,13 @@ function help() {
   log('  enable             - Re-enable monitoring');
   log('  revoke             - Revoke consent and uninstall');
   log('  debug [full|clear] - View or clear debug logs');
+  log('  diagnose           - Run diagnostics');
   log('  help               - Show this help message');
   log('');
   log('Examples:');
   log('  clawtrial setup');
   log('  clawtrial status');
+  log('  clawtrial diagnose');
   log('  clawtrial debug full');
   log('');
 }
@@ -390,6 +466,9 @@ async function main() {
       break;
     case 'debug':
       debug(subcommand);
+      break;
+    case 'diagnose':
+      diagnose();
       break;
     case 'help':
     case '--help':
