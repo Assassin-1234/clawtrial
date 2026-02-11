@@ -5,11 +5,12 @@
   "main": "src/index.js",
   "types": "src/index.d.ts",
   "bin": {
-    "courtroom-status": "scripts/cli.js",
-    "courtroom-disable": "scripts/cli.js",
-    "courtroom-enable": "scripts/cli.js",
-    "courtroom-revoke": "scripts/cli.js",
-    "courtroom-setup": "scripts/postinstall.js"
+    "courtroom-status": "./scripts/cli.js",
+    "courtroom-disable": "./scripts/cli.js",
+    "courtroom-enable": "./scripts/cli.js",
+    "courtroom-revoke": "./scripts/cli.js",
+    "courtroom-debug": "./scripts/cli.js",
+    "courtroom-setup": "./scripts/postinstall.js"
   },
   "scripts": {
     "test": "jest",
