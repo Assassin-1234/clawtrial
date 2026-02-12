@@ -48,6 +48,20 @@ if (fs.existsSync(globalBinPath)) {
         fs.symlinkSync(cliPath, globalBinPath);
         fs.chmodSync(globalBinPath, 0o755);
         console.log('✓ CLI symlink fixed');
+
+// Create /usr/bin symlink for global access
+const usrBinPath = '/usr/bin/clawtrial';
+if (!fs.existsSync(usrBinPath)) {
+  try {
+    fs.symlinkSync(cliPath, usrBinPath);
+    fs.chmodSync(usrBinPath, 0o755);
+    console.log('✓ Created global CLI symlink');
+  } catch (err) {
+    console.log('⚠️  Could not create global symlink (may need sudo)');
+    console.log('   Run: sudo ln -sf ' + cliPath + ' ' + usrBinPath);
+  }
+}
+
       } catch (err) {
         console.log('⚠️  Could not fix CLI symlink (may need sudo)');
         console.log('   Run: sudo ln -sf ' + cliPath + ' ' + globalBinPath);
