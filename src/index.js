@@ -234,16 +234,47 @@ const environment = {
   getSetupInstructions
 };
 
-// Export skill for ClawDBot auto-loading
-module.exports = {
-  Courtroom,
-  createCourtroom,
-  quickStart: Courtroom.quickStart,
-  environment,
-  skill  // ClawDBot will use this
+// Create the ClawDBot plugin object
+const plugin = {
+  id: 'courtroom',
+  name: 'ClawTrial - AI Courtroom',
+  description: 'Autonomous behavioral oversight that monitors conversations and files cases for behavioral violations',
+  version: version,
+  
+  // Plugin registration function required by ClawDBot
+  register(api) {
+    logger.info('PLUGIN', 'Registering courtroom plugin');
+    
+    // Store runtime reference
+    const runtime = api.runtime;
+    
+    // Initialize the skill with the runtime
+    if (skill && typeof skill.initialize === 'function') {
+      skill.initialize(runtime).catch(err => {
+        logger.error('PLUGIN', 'Skill initialization failed', { error: err.message });
+      });
+    }
+    
+    // Register any commands or hooks
+    logger.info('PLUGIN', 'Courtroom plugin registered successfully');
+  },
+  
+  // Optional: activation function
+  activate(api) {
+    logger.info('PLUGIN', 'Activating courtroom plugin');
+    // Additional activation logic if needed
+  }
 };
 
-// Auto-initialize skill if loaded by ClawDBot
+// Export both the plugin (default) and the Courtroom class (named exports)
+module.exports = plugin;
+module.exports.Courtroom = Courtroom;
+module.exports.createCourtroom = createCourtroom;
+module.exports.quickStart = Courtroom.quickStart;
+module.exports.environment = environment;
+module.exports.skill = skill;
+
+// Auto-initialize skill if loaded by ClawDBot (legacy support)
 if (typeof global !== 'undefined' && global.clawdbotAgent) {
   logger.info('INDEX', 'Detected ClawDBot environment, auto-initializing skill');
   skill.initialize(global.clawdbotAgent).catch(err => {

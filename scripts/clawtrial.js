@@ -274,6 +274,67 @@ function enable() {
   log('The courtroom will activate when ClawDBot loads the skill.\n');
 }
 
+// Start command - manually initialize the skill
+async function start() {
+  const config = loadConfig();
+  
+  if (!config) {
+    log('\n❌ ClawTrial not configured');
+    log('   Run: clawtrial setup\n');
+    return;
+  }
+
+  if (!config.consent?.granted) {
+    log('\n❌ Cannot start: Consent not granted');
+    log('   Run: clawtrial setup\n');
+    return;
+  }
+
+  // Check if already running
+  const { getCourtroomStatus } = require('../src/daemon');
+  const currentStatus = getCourtroomStatus();
+  
+  if (currentStatus.running) {
+    log('\n🏛️  ClawTrial is already running');
+    log('  Process ID: ' + currentStatus.pid + '\n');
+    return;
+  }
+
+  log('\n🏛️  Starting ClawTrial...\n');
+  
+  try {
+    // Import and initialize the skill
+    const skillModule = require('../src/skill');
+    
+    // Create a minimal mock agent for standalone operation
+    const mockAgent = {
+      memory: { 
+        get: async () => null, 
+        set: async () => {} 
+      },
+      send: async () => {}
+    };
+    
+    await skillModule.initialize(mockAgent);
+    
+    const status = skillModule.getStatus();
+    
+    if (status.initialized && status.enabled) {
+      log('✅ ClawTrial started successfully!\n');
+      log('🏛️  Courtroom is now monitoring conversations');
+      log('📋 Status: Running');
+      log('🔑 Public Key: ' + (fs.existsSync(keysPath) ? JSON.parse(fs.readFileSync(keysPath)).publicKey.substring(0, 32) : 'N/A') + '...\n');
+    } else {
+      log('⚠️  ClawTrial started but may not be fully operational\n');
+    }
+  } catch (err) {
+    log('\n❌ Failed to start ClawTrial: ' + err.message + '\n');
+    log('Try running: clawtrial diagnose\n');
+    process.exit(1);
+  }
+}
+
+
 // Revoke command
 async function revoke() {
   const config = loadConfig();
@@ -454,6 +515,7 @@ function help() {
   log('  enable             - Re-enable monitoring');
   log('  revoke             - Revoke consent and uninstall');
   log('  debug [full|clear] - View or clear debug logs');
+  log('  start              - Start the courtroom manually');
   log('  diagnose           - Run diagnostics');
   log('  help               - Show this help message');
   log('');
@@ -487,6 +549,9 @@ async function main() {
       break;
     case 'debug':
       debug(subcommand);
+      break;
+    case 'start':
+      await start();
       break;
     case 'diagnose':
       diagnose();
