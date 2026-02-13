@@ -9,23 +9,20 @@ AI Courtroom - Autonomous behavioral oversight for OpenClaw agents.
 npm install -g @clawtrial/courtroom
 ```
 
-**⚠️ IMPORTANT:** If `clawtrial` command is not found after install, run:
+**If `clawtrial` command not found:**
 ```bash
-# Option 1: Add npm global bin to PATH
 export PATH="$HOME/.npm-global/bin:$PATH"
-
-# Option 2: Create symlink (requires sudo)
-sudo ln -sf "$HOME/.npm-global/lib/node_modules/@clawtrial/courtroom/scripts/clawtrial.js" /usr/bin/clawtrial
+# Or: sudo ln -sf "$HOME/.npm-global/lib/node_modules/@clawtrial/courtroom/scripts/clawtrial.js" /usr/bin/clawtrial
 ```
 
-### 2. Setup
+### 2. Setup (One-time)
 ```bash
 clawtrial setup
 ```
 
-### 3. Start the Courtroom
+### 3. Restart ClawDBot
 ```bash
-clawtrial start
+killall clawdbot && clawdbot
 ```
 
 ### 4. Verify
@@ -37,27 +34,28 @@ clawtrial status
 
 ## 📋 How It Works
 
-ClawTrial runs as a **ClawDBot skill** that:
-1. Monitors all conversations
-2. Detects behavioral violations
-3. Files cases automatically
+The courtroom runs **automatically** as a ClawDBot skill:
 
-**Note:** You must run `clawtrial start` after installation to activate monitoring.
+1. **Install** - Package is installed globally
+2. **Setup** - You grant consent via `clawtrial setup`
+3. **Auto-load** - ClawDBot automatically loads the skill on restart
+4. **Monitor** - Skill receives all messages and monitors for offenses
+5. **File cases** - When offenses are detected, cases are filed automatically
+
+**No manual start needed** - it runs within ClawDBot's process!
 
 ---
 
 ## 🎮 CLI Commands
 
 ```bash
-clawtrial setup       # Interactive setup (run this first)
-clawtrial start       # Start monitoring (required!)
-clawtrial status      # Check if courtroom is running
-clawtrial diagnose    # Run full diagnostics
-clawtrial disable     # Pause monitoring
-clawtrial enable      # Resume monitoring
-clawtrial revoke      # Uninstall completely
-clawtrial debug       # View debug logs
-clawtrial help        # Show all commands
+clawtrial setup      # Interactive setup (run once)
+clawtrial status     # Check if courtroom is running
+clawtrial disable    # Pause monitoring
+clawtrial enable     # Resume monitoring
+clawtrial revoke     # Revoke consent and uninstall
+clawtrial diagnose   # Run diagnostics
+clawtrial help       # Show all commands
 ```
 
 ---
@@ -107,10 +105,10 @@ source ~/.bashrc  # or ~/.zshrc
 ```
 
 ### "Courtroom not running"
-You need to explicitly start it:
-```bash
-clawtrial start
-```
+The courtroom runs as a ClawDBot skill. Make sure:
+1. You've run `clawtrial setup`
+2. You've restarted ClawDBot after setup
+3. Check `clawtrial diagnose` for details
 
 ### Need help?
 ```bash
@@ -125,7 +123,7 @@ clawtrial debug     # Shows logs
 ```bash
 npm install -g github:Assassin-1234/clawtrial
 clawtrial setup
-clawtrial start
+# Restart ClawDBot
 ```
 
 ---

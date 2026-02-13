@@ -20,21 +20,26 @@ export PATH="$HOME/.npm-global/bin:$PATH"
 # Or: sudo ln -sf "$HOME/.npm-global/lib/node_modules/@clawtrial/courtroom/scripts/clawtrial.js" /usr/bin/clawtrial
 ```
 
-## Setup
+## Setup (One-time)
 
 ```bash
-clawtrial setup    # Run once to grant consent
-clawtrial start    # Start monitoring (REQUIRED!)
+clawtrial setup    # Grant consent and configure
+```
+
+**Then restart ClawDBot:**
+```bash
+killall clawdbot && clawdbot
 ```
 
 ## How It Works
 
-Once started, the courtroom automatically:
-1. Monitors all conversations
-2. Detects 8 types of behavioral violations
-3. Initiates hearings with local LLM jury
-4. Executes agent-side punishments
-5. Submits anonymized cases to public record
+The courtroom runs **automatically** as a ClawDBot skill:
+
+1. **Install** - Package is installed globally
+2. **Setup** - You grant consent via `clawtrial setup`
+3. **Auto-load** - ClawDBot automatically loads the skill on restart
+4. **Monitor** - Skill receives all messages and monitors for offenses
+5. **File cases** - When offenses are detected, cases are filed automatically
 
 ## The 8 Offenses
 
@@ -52,12 +57,12 @@ Once started, the courtroom automatically:
 ## CLI Commands
 
 ```bash
-clawtrial setup      # Interactive setup
-clawtrial start      # Start monitoring (REQUIRED!)
-clawtrial status     # Check status
+clawtrial setup      # Interactive setup (run once)
+clawtrial status     # Check if courtroom is running
 clawtrial disable    # Pause monitoring
 clawtrial enable     # Resume monitoring
-clawtrial revoke     # Uninstall
+clawtrial revoke     # Revoke consent and uninstall
+clawtrial diagnose   # Run diagnostics
 ```
 
 ## View Cases
