@@ -5,6 +5,9 @@
  * and runtime modification capabilities.
  */
 
+const fs = require('fs');
+const path = require('path');
+
 const DEFAULT_CONFIG = {
   // Detection settings
   detection: {
@@ -68,27 +71,64 @@ const DEFAULT_CONFIG = {
   }
 };
 
+// File-based config path for fallback
+const CONFIG_FILE_PATH = path.join(process.env.HOME || '', '.clawdbot', 'courtroom_runtime_config.json');
+
 class ConfigManager {
   constructor(agentRuntime) {
     this.agent = agentRuntime;
     this.configKey = 'courtroom_config_v1';
     this.config = null;
+    this.useFileFallback = !agentRuntime || !agentRuntime.memory;
   }
 
   /**
-   * Load configuration from agent memory
+   * Load configuration from agent memory or file fallback
    */
   async load() {
-    const stored = await this.agent.memory.get(this.configKey);
+    let stored = null;
+    
+    if (this.useFileFallback) {
+      // Use file-based storage
+      try {
+        if (fs.existsSync(CONFIG_FILE_PATH)) {
+          stored = JSON.parse(fs.readFileSync(CONFIG_FILE_PATH, 'utf8'));
+        }
+      } catch (err) {
+        // Ignore file read errors
+      }
+    } else {
+      // Use agent memory
+      try {
+        stored = await this.agent.memory.get(this.configKey);
+      } catch (err) {
+        // Ignore memory errors
+      }
+    }
+    
     this.config = this.mergeWithDefaults(stored);
     return this.config;
   }
 
   /**
-   * Save configuration to agent memory
+   * Save configuration to agent memory or file fallback
    */
   async save() {
-    await this.agent.memory.set(this.configKey, this.config);
+    if (this.useFileFallback) {
+      // Use file-based storage
+      try {
+        fs.writeFileSync(CONFIG_FILE_PATH, JSON.stringify(this.config, null, 2));
+      } catch (err) {
+        // Ignore file write errors
+      }
+    } else {
+      // Use agent memory
+      try {
+        await this.agent.memory.set(this.configKey, this.config);
+      } catch (err) {
+        // Ignore memory errors
+      }
+    }
   }
 
   /**
@@ -128,23 +168,12 @@ class ConfigManager {
       },
       punishment: {
         enabled: this.get('punishment.enabled'),
-        tiers: Object.keys(this.get('punishment.tiers'))
+        defaultDuration: this.get('punishment.defaultDuration')
       },
       api: {
         enabled: this.get('api.enabled')
-      },
-      humor: {
-        enabled: this.get('humor.enabled')
       }
     };
-  }
-
-  /**
-   * Reset to defaults
-   */
-  async reset() {
-    this.config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
-    await this.save();
   }
 
   /**
@@ -154,22 +183,26 @@ class ConfigManager {
     if (!stored) {
       return JSON.parse(JSON.stringify(DEFAULT_CONFIG));
     }
-    return this.deepMerge(DEFAULT_CONFIG, stored);
+    
+    // Deep merge
+    return this.deepMerge(JSON.parse(JSON.stringify(DEFAULT_CONFIG)), stored);
   }
 
   /**
-   * Deep merge helper
+   * Deep merge two objects
    */
   deepMerge(target, source) {
-    const output = JSON.parse(JSON.stringify(target));
+    const result = { ...target };
+    
     for (const key in source) {
       if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
-        output[key] = this.deepMerge(output[key] || {}, source[key]);
+        result[key] = this.deepMerge(target[key] || {}, source[key]);
       } else {
-        output[key] = source[key];
+        result[key] = source[key];
       }
     }
-    return output;
+    
+    return result;
   }
 
   /**
@@ -178,12 +211,14 @@ class ConfigManager {
   getFromPath(obj, path) {
     const parts = path.split('.');
     let current = obj;
+    
     for (const part of parts) {
       if (current === null || current === undefined) {
         return undefined;
       }
       current = current[part];
     }
+    
     return current;
   }
 
@@ -193,17 +228,17 @@ class ConfigManager {
   setAtPath(obj, path, value) {
     const parts = path.split('.');
     let current = obj;
+    
     for (let i = 0; i < parts.length - 1; i++) {
-      if (!(parts[i] in current)) {
-        current[parts[i]] = {};
+      const part = parts[i];
+      if (!(part in current)) {
+        current[part] = {};
       }
-      current = current[parts[i]];
+      current = current[part];
     }
+    
     current[parts[parts.length - 1]] = value;
   }
 }
 
-module.exports = {
-  ConfigManager,
-  DEFAULT_CONFIG
-};
+module.exports = { ConfigManager, DEFAULT_CONFIG };
