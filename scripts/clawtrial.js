@@ -274,7 +274,7 @@ function enable() {
   log('The courtroom will activate when ClawDBot loads the skill.\n');
 }
 
-// Start command - manually initialize the skill
+// Start command - daemonize and run in background
 async function start() {
   const config = loadConfig();
   
@@ -302,35 +302,57 @@ async function start() {
 
   log('\n🏛️  Starting ClawTrial...\n');
   
-  try {
-    // Import and initialize the skill
-    const skillModule = require('../src/skill');
-    
-    // Create a minimal mock agent for standalone operation
-    const mockAgent = {
-      memory: { 
-        get: async () => null, 
-        set: async () => {} 
-      },
-      send: async () => {}
-    };
-    
-    await skillModule.initialize(mockAgent);
-    
-    const status = skillModule.getStatus();
-    
-    if (status.initialized && status.enabled) {
-      log('✅ ClawTrial started successfully!\n');
-      log('🏛️  Courtroom is now monitoring conversations');
-      log('📋 Status: Running');
-      log('🔑 Public Key: ' + (fs.existsSync(keysPath) ? JSON.parse(fs.readFileSync(keysPath)).publicKey.substring(0, 32) : 'N/A') + '...\n');
-    } else {
-      log('⚠️  ClawTrial started but may not be fully operational\n');
-    }
-  } catch (err) {
-    log('\n❌ Failed to start ClawTrial: ' + err.message + '\n');
-    log('Try running: clawtrial diagnose\n');
-    process.exit(1);
+  // Fork a daemon process
+  const spawn = require('child_process').spawn;
+  const daemonPath = require('path').join(__dirname, 'daemon.js');
+  
+  // Create daemon script if it doesn't exist
+  if (!fs.existsSync(daemonPath)) {
+    const daemonScript = `#!/usr/bin/env node
+const { skill } = require('../src/skill');
+
+const mockAgent = {
+  memory: { 
+    get: async () => null, 
+    set: async () => {} 
+  },
+  send: async () => {}
+};
+
+skill.initialize(mockAgent).then(() => {
+  console.log('Courtroom daemon started, PID:', process.pid);
+  // Keep process alive
+  setInterval(() => {}, 1000 * 60 * 60);
+}).catch(err => {
+  console.error('Failed to start:', err.message);
+  process.exit(1);
+});
+`;
+    fs.writeFileSync(daemonPath, daemonScript);
+    fs.chmodSync(daemonPath, 0o755);
+  }
+  
+  // Spawn detached process
+  const child = spawn('node', [daemonPath], {
+    detached: true,
+    stdio: 'ignore'
+  });
+  
+  child.unref();
+  
+  // Wait a moment and check status
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  
+  const newStatus = getCourtroomStatus();
+  if (newStatus.running) {
+    log('✅ ClawTrial started successfully!\n');
+    log('🏛️  Courtroom is now monitoring conversations');
+    log('📋 Status: Running');
+    log('🔑 Public Key: ' + (fs.existsSync(keysPath) ? JSON.parse(fs.readFileSync(keysPath)).publicKey.substring(0, 32) : 'N/A') + '...\n');
+    log('💡 Tip: Run "clawtrial status" anytime to check status\n');
+  } else {
+    log('⚠️  ClawTrial may not have started properly\n');
+    log('   Run "clawtrial diagnose" for details\n');
   }
 }
 
