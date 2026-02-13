@@ -1,5 +1,5 @@
 /**
- * @clawtrial/courtroom - AI Courtroom for OpenClaw
+ * @clawdbot/courtroom - AI Courtroom for OpenClaw
  * 
  * Autonomous behavioral oversight system that monitors agent-human interactions
  * and initiates hearings when behavioral rules are violated.
@@ -245,27 +245,29 @@ const plugin = {
   register(api) {
     logger.info('PLUGIN', 'Registering courtroom plugin');
     
-    // Store runtime reference
+    // Get runtime from API
     const runtime = api.runtime;
     
-    // Only initialize skill if runtime has the required memory interface
-    // The skill system will auto-initialize via shouldActivate if this fails
-    if (skill && typeof skill.initialize === 'function' && runtime && runtime.memory) {
-      skill.initialize(runtime).catch(err => {
-        logger.error('PLUGIN', 'Skill initialization failed', { error: err.message });
-      });
-    } else {
-      logger.info('PLUGIN', 'Skill will auto-initialize via ClawDBot skill system');
+    // ALWAYS try to initialize the skill if it should activate
+    if (skill && typeof skill.initialize === 'function') {
+      if (skill.shouldActivate()) {
+        logger.info('PLUGIN', 'Skill should activate, initializing now');
+        skill.initialize(runtime).then(() => {
+          logger.info('PLUGIN', 'Skill initialized successfully');
+        }).catch(err => {
+          logger.error('PLUGIN', 'Skill initialization failed', { error: err.message });
+        });
+      } else {
+        logger.info('PLUGIN', 'Skill shouldActivate returned false, not initializing');
+      }
     }
     
-    // Register any commands or hooks
     logger.info('PLUGIN', 'Courtroom plugin registered successfully');
   },
   
   // Optional: activation function
   activate(api) {
     logger.info('PLUGIN', 'Activating courtroom plugin');
-    // Additional activation logic if needed
   }
 };
 
