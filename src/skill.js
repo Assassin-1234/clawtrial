@@ -138,6 +138,8 @@ class CourtroomSkill {
    * @param {Object} context - Additional context
    */
   async onMessage(message, context = {}) {
+    // Debug logging
+    logger.info("SKILL", "onMessage called", { initialized: this.initialized, hasCore: !!this.core });
     if (!this.initialized || !this.core) {
       return;
     }
