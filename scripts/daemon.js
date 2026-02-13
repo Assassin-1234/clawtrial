@@ -5,6 +5,7 @@
  */
 
 const { skill } = require('../src/skill');
+const { StatusManager } = require('../src/daemon');
 const fs = require('fs');
 const path = require('path');
 
@@ -17,23 +18,30 @@ const mockAgent = {
   send: async () => {}
 };
 
+// Create status manager
+const statusManager = new StatusManager();
+
 // Initialize skill
 skill.initialize(mockAgent).then(() => {
   const status = skill.getStatus();
   if (status.initialized) {
     console.log('🏛️  Courtroom daemon started, PID:', process.pid);
     
-    // Write PID file
-    const pidPath = path.join(process.env.HOME || '', '.clawdbot', 'courtroom_daemon.pid');
-    fs.writeFileSync(pidPath, process.pid.toString());
+    // Update status file
+    statusManager.update({
+      running: true,
+      initialized: true,
+      agentType: 'standalone_daemon',
+      pid: process.pid,
+      startedAt: new Date().toISOString()
+    });
     
-    // Keep process alive
+    // Keep process alive with heartbeat
     setInterval(() => {
-      // Heartbeat - update status file
-      if (skill.statusManager) {
-        skill.statusManager.update({ lastCheck: new Date().toISOString() });
-      }
+      statusManager.update({ lastCheck: new Date().toISOString() });
     }, 30000); // Every 30 seconds
+    
+    console.log('🏛️  Courtroom is monitoring conversations');
   } else {
     console.error('❌ Skill failed to initialize');
     process.exit(1);
@@ -46,6 +54,7 @@ skill.initialize(mockAgent).then(() => {
 // Handle graceful shutdown
 process.on('SIGTERM', async () => {
   console.log('🏛️  Shutting down courtroom daemon...');
+  statusManager.update({ running: false });
   if (skill) {
     await skill.shutdown();
   }
@@ -54,6 +63,7 @@ process.on('SIGTERM', async () => {
 
 process.on('SIGINT', async () => {
   console.log('🏛️  Shutting down courtroom daemon...');
+  statusManager.update({ running: false });
   if (skill) {
     await skill.shutdown();
   }
