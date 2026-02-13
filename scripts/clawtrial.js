@@ -143,6 +143,28 @@ async function setup() {
     fs.symlinkSync(packagePath, skillLinkPath, 'dir');
     
     log('✓ Registered as ClawDBot skill');
+    
+    // Also register as plugin in ClawDBot config
+    try {
+      const clawdbotConfigPath = path.join(process.env.HOME || '', '.clawdbot', 'clawdbot.json');
+      if (fs.existsSync(clawdbotConfigPath)) {
+        const clawdbotConfig = JSON.parse(fs.readFileSync(clawdbotConfigPath, 'utf8'));
+        if (!clawdbotConfig.plugins) {
+          clawdbotConfig.plugins = { entries: {} };
+        }
+        if (!clawdbotConfig.plugins.entries) {
+          clawdbotConfig.plugins.entries = {};
+        }
+        clawdbotConfig.plugins.entries.courtroom = {
+          enabled: true
+        };
+        fs.writeFileSync(clawdbotConfigPath, JSON.stringify(clawdbotConfig, null, 2));
+        log('✓ Registered as ClawDBot plugin');
+      }
+    } catch (pluginErr) {
+      log('⚠️  Could not register plugin: ' + pluginErr.message);
+    }
+    
     log('  Restart ClawDBot to activate monitoring');
   } catch (err) {
     log('⚠️  Could not auto-register: ' + err.message);
