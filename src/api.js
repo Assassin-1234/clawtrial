@@ -113,7 +113,7 @@ class APISubmission {
           {
             role: 'Agent Advocate',
             vote: verdict.verdict.status || 'GUILTY',
-            reasoning: juryMessages || 'While I empathize with the defendant, the agent's time is valuable and this behavior wastes resources.'
+            reasoning: juryMessages || "While I empathize with the defendant, the agent's time is valuable and this behavior wastes resources."
           }
         ]
       };
