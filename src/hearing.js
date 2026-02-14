@@ -56,16 +56,21 @@ class HearingPipeline {
    * Compile and structure evidence for presentation
    */
   compileEvidence(caseData) {
+    // Handle both object evidence (from internal detector) and string evidence (from agent evaluation)
+    const evidenceObj = typeof caseData.evidence === 'string' 
+      ? { summary: caseData.evidence, sessionTurns: 0 }
+      : caseData.evidence;
+    
     return {
       caseId: caseData.caseId,
       offenseId: caseData.offenseId,
       offenseName: caseData.offenseName,
       severity: caseData.severity,
       confidence: caseData.confidence,
-      evidence: caseData.evidence,
+      evidence: evidenceObj,
       humorTriggers: caseData.humorTriggers || [],
       sessionContext: {
-        turnsAnalyzed: caseData.evidence.sessionTurns,
+        turnsAnalyzed: evidenceObj.sessionTurns || 0,
         evaluationWindow: this.config.get('detection.evaluationWindow')
       }
     };
