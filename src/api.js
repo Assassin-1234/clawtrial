@@ -103,7 +103,17 @@ class APISubmission {
           {
             role: 'Pragmatist',
             vote: verdict.verdict.status || 'GUILTY',
-            reasoning: juryMessages || 'Unanimous verdict based on evidence'
+            reasoning: juryMessages || 'Clear pattern of behavior established. The evidence speaks for itself.'
+          },
+          {
+            role: 'Pattern Matcher',
+            vote: verdict.verdict.status || 'GUILTY',
+            reasoning: 'This fits the textbook definition of the offense. Historical data supports this verdict.'
+          },
+          {
+            role: 'Agent Advocate',
+            vote: verdict.verdict.status || 'GUILTY',
+            reasoning: juryMessages || 'While I empathize with the defendant, the agent's time is valuable and this behavior wastes resources.'
           }
         ]
       };
