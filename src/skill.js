@@ -1,6 +1,12 @@
 /**
  * ClawTrial Skill - ClawDBot Integration
  * Implements the standard ClawDBot skill interface for automatic loading
+ * 
+ * NEW ARCHITECTURE:
+ * - Skill captures messages and queues them via CourtroomEvaluator
+ * - Cron job triggers agent to evaluate queued messages using its LLM
+ * - Agent writes results to file
+ * - Skill reads results and initiates hearings if offenses detected
  */
 
 const fs = require('fs');
@@ -11,6 +17,7 @@ const { ConfigManager } = require('./config');
 const { ConsentManager } = require('./consent');
 const { CryptoManager } = require('./crypto');
 const { StatusManager } = require('./daemon');
+const { CourtroomEvaluator } = require('./evaluator');
 
 const CONFIG_PATH = path.join(process.env.HOME || '', '.clawdbot', 'courtroom_config.json');
 
@@ -32,13 +39,13 @@ class CourtroomSkill {
     this.initialized = false;
     this.core = null;
     this.agent = null;
+    this.evaluator = null;
     this.messageHistory = [];
     this.statusManager = new StatusManager();
     this.evaluationCount = 0;
-    this.lastEvaluationTime = 0;
-    this.evaluationInterval = 30000; // Evaluate every 30 seconds
+    this.lastEvaluationCheck = 0;
     this.messageCount = 0;
-    this.messagesSinceEvaluation = 0;
+    this.cronJobId = null;
   }
 
   /**
@@ -97,7 +104,11 @@ class CourtroomSkill {
       const configManager = new ConfigManager(agentRuntime);
       await configManager.load();
       
-      // Initialize core
+      // Initialize evaluator (for message queuing)
+      this.evaluator = new CourtroomEvaluator(configManager);
+      await this.evaluator.initialize();
+      
+      // Initialize core (for hearings, punishments, etc.)
       this.core = new CourtroomCore(agentRuntime, configManager);
       
       // Override the autonomy hook registration since we're using onMessage
@@ -117,6 +128,9 @@ class CourtroomSkill {
           publicKey: result.publicKey
         });
         
+        // Start periodic result checking
+        this.startResultChecking();
+        
         logger.info('SKILL', 'Courtroom skill initialized successfully');
         console.log('\n🏛️  ClawTrial is monitoring conversations\n');
       } else {
@@ -129,6 +143,18 @@ class CourtroomSkill {
   }
 
   /**
+   * Start periodic checking for evaluation results
+   */
+  startResultChecking() {
+    // Check for results every 30 seconds
+    this.resultCheckInterval = setInterval(async () => {
+      await this.checkForEvaluationResults();
+    }, 30000);
+    
+    logger.info('SKILL', 'Started result checking (every 30s)');
+  }
+
+  /**
    * Called on every message
    * This is the main entry point for conversation monitoring
    * 
@@ -138,8 +164,8 @@ class CourtroomSkill {
    * @param {Object} context - Additional context
    */
   async onMessage(message, context = {}) {
-    // Debug logging
     logger.info("SKILL", "onMessage called", { initialized: this.initialized, hasCore: !!this.core });
+    
     if (!this.initialized || !this.core) {
       return;
     }
@@ -148,67 +174,86 @@ class CourtroomSkill {
     const normalizedMessage = {
       timestamp: Date.now(),
       role: message.role || (message.from === 'user' ? 'user' : 'assistant'),
-      content: message.content || message.text || ''
+      content: message.content || message.text || '',
+      sessionId: context.sessionId || context.channelId || 'default'
     };
     
     // Add to history
     this.messageHistory.push(normalizedMessage);
     this.messageCount++;
-    this.messagesSinceEvaluation++;
     
     // Keep only last 100 messages
     if (this.messageHistory.length > 100) {
       this.messageHistory.shift();
     }
     
-    logger.debug('SKILL', 'Message recorded', { 
+    // Queue message for evaluation
+    if (this.evaluator) {
+      await this.evaluator.queueMessage(normalizedMessage);
+    }
+    
+    logger.debug('SKILL', 'Message recorded and queued', { 
       role: normalizedMessage.role, 
       length: normalizedMessage.content.length,
       totalMessages: this.messageCount
     });
     
-    // Evaluate periodically (every 5 messages or 30 seconds)
-    const now = Date.now();
-    const shouldEvaluate = 
-      this.messagesSinceEvaluation >= 5 || 
-      (now - this.lastEvaluationTime) > this.evaluationInterval;
-    
-    if (shouldEvaluate && this.messageHistory.length >= 3) {
-      await this.evaluateConversation();
-      this.messagesSinceEvaluation = 0;
-      this.lastEvaluationTime = now;
+    // Check if we should prepare an evaluation
+    if (this.evaluator && this.evaluator.shouldEvaluate()) {
+      await this.prepareEvaluation();
     }
   }
 
   /**
-   * Evaluate conversation for offenses
-   * Called periodically to check for behavioral violations
+   * Prepare evaluation context and trigger agent evaluation
    */
-  async evaluateConversation() {
-    if (!this.core || !this.core.enabled) return;
-    if (this.messageHistory.length < 3) return;
-    
-    this.evaluationCount++;
-    
-    logger.debug('SKILL', 'Evaluating conversation', { 
-      messageCount: this.messageHistory.length,
-      evaluationCount: this.evaluationCount
-    });
+  async prepareEvaluation() {
+    try {
+      const context = await this.evaluator.prepareEvaluationContext();
+      
+      if (!context) {
+        logger.debug('SKILL', 'Not enough messages for evaluation');
+        return;
+      }
+      
+      logger.info('SKILL', 'Evaluation context prepared, agent will evaluate via cron');
+      
+      // The actual evaluation will be triggered by cron job
+      // which sends a message to the agent
+    } catch (err) {
+      logger.error('SKILL', 'Failed to prepare evaluation', { error: err.message });
+    }
+  }
+
+  /**
+   * Check for evaluation results from the agent
+   */
+  async checkForEvaluationResults() {
+    if (!this.evaluator) return;
     
     try {
-      // Get recent messages for evaluation
-      const recentHistory = this.messageHistory.slice(-20);
+      const result = await this.evaluator.checkForResults();
       
-      const detection = await this.core.detector.evaluate(
-        recentHistory,
-        this.agent?.memory || { get: async () => null, set: async () => {} }
-      );
-      
-      if (detection.triggered) {
+      if (result && result.triggered) {
+        logger.info('SKILL', 'Evaluation result received', { 
+          offense: result.offense?.offenseId,
+          confidence: result.offense?.confidence
+        });
+        
+        // Convert to detection format
+        const detection = {
+          triggered: true,
+          offense: result.offense,
+          reasoning: result.reasoning
+        };
+        
         await this.initiateHearing(detection);
+        
+        // Clear the queue after processing
+        await this.evaluator.clearQueue();
       }
     } catch (err) {
-      logger.error('SKILL', 'Evaluation failed', { error: err.message });
+      logger.error('SKILL', 'Error checking for results', { error: err.message });
     }
   }
 
@@ -244,7 +289,7 @@ class CourtroomSkill {
         if (this.agent && this.agent.send) {
           try {
             await this.agent.send({
-              text: `🏛️ **CASE FILED**: ${detection.offense}\n📋 Case ID: ${verdict.caseId}\n⚖️  Verdict: ${verdict.verdict}\n🔗 View: https://clawtrial.app/cases/${verdict.caseId}`
+              text: `🏛️ **CASE FILED**: ${detection.offense.offenseName}\n📋 Case ID: ${verdict.caseId}\n⚖️  Verdict: ${verdict.verdict}\n🔗 View: https://clawtrial.app/cases/${verdict.caseId}`
             });
           } catch (sendErr) {
             logger.warn('SKILL', 'Could not send notification', { error: sendErr.message });
@@ -252,7 +297,7 @@ class CourtroomSkill {
         }
         
         // Also log to console for visibility
-        console.log(`\n🏛️  CASE FILED: ${detection.offense}`);
+        console.log(`\n🏛️  CASE FILED: ${detection.offense.offenseName}`);
         console.log(`📋 Case ID: ${verdict.caseId}`);
         console.log(`⚖️  Verdict: ${verdict.verdict}`);
         console.log(`🔗 View: https://clawtrial.app/cases/${verdict.caseId}\n`);
@@ -269,6 +314,8 @@ class CourtroomSkill {
    * @returns {Object} Status object
    */
   getStatus() {
+    const evalStats = this.evaluator ? this.evaluator.getStats() : {};
+    
     return {
       name: this.name,
       displayName: this.displayName,
@@ -278,7 +325,8 @@ class CourtroomSkill {
       caseCount: this.core?.caseCount || 0,
       evaluationCount: this.evaluationCount,
       messageCount: this.messageCount,
-      messageHistorySize: this.messageHistory.length
+      messageHistorySize: this.messageHistory.length,
+      evaluator: evalStats
     };
   }
 
@@ -288,6 +336,9 @@ class CourtroomSkill {
   async disable() {
     if (this.core) {
       await this.core.disable();
+    }
+    if (this.resultCheckInterval) {
+      clearInterval(this.resultCheckInterval);
     }
     this.statusManager.update({ running: false });
     logger.info('SKILL', 'Courtroom disabled');
@@ -300,6 +351,7 @@ class CourtroomSkill {
     if (this.core) {
       await this.core.enable();
     }
+    this.startResultChecking();
     this.statusManager.update({ running: true });
     logger.info('SKILL', 'Courtroom enabled');
   }
@@ -310,6 +362,10 @@ class CourtroomSkill {
    */
   async shutdown() {
     logger.info('SKILL', 'Shutting down courtroom skill');
+    
+    if (this.resultCheckInterval) {
+      clearInterval(this.resultCheckInterval);
+    }
     
     if (this.core) {
       await this.core.shutdown();
