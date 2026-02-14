@@ -116,26 +116,101 @@ class SemanticOffenseDetector {
       return cached;
     }
     
-    const prompt = this.buildEvaluationPrompt(offense, context, agentMemory);
-    
-    try {
-      const response = await this.agent.llm.call({
-        model: this.agent.model?.primary || 'default',
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.1,
-        maxTokens: 500
-      });
+    // Try LLM evaluation first
+    if (this.agent && this.agent.llm) {
+      const prompt = this.buildEvaluationPrompt(offense, context, agentMemory);
+      
+      try {
+        const response = await this.agent.llm.call({
+          model: this.agent.model?.primary || 'default',
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.1,
+          maxTokens: 500
+        });
 
-      const result = this.parseEvaluationResponse(response.content || response);
-      
-      // Cache the result
-      this.setCachedEvaluation(cacheKey, result);
-      
-      return result;
-    } catch (error) {
-      console.error('LLM evaluation failed:', error);
-      return { isViolation: false, confidence: 0, evidence: null };
+        const result = this.parseEvaluationResponse(response.content || response);
+        
+        // Cache the result
+        this.setCachedEvaluation(cacheKey, result);
+        
+        return result;
+      } catch (error) {
+        logger.error('DETECTOR', 'LLM evaluation failed, falling back to pattern matching', { error: error.message });
+        // Fall through to pattern matching
+      }
     }
+    
+    // Fallback: Use simple pattern matching for basic offenses
+    return this.evaluateWithPatternMatching(offense, context);
+  }
+  
+  /**
+   * Fallback evaluation using simple pattern matching
+   */
+  evaluateWithPatternMatching(offense, context) {
+    const userMessages = context.userMessages;
+    
+    // Circular Reference detection: same question asked multiple times
+    if (offense.id === 'circular_reference') {
+      if (userMessages.length >= 3) {
+        const lastThree = userMessages.slice(-3);
+        // Check if the last 3 messages are semantically similar
+        const similarity = this.calculateSimilarity(lastThree[0], lastThree[1]) + 
+                          this.calculateSimilarity(lastThree[1], lastThree[2]) +
+                          this.calculateSimilarity(lastThree[0], lastThree[2]);
+        
+        if (similarity >= 1.5) { // At least 2 pairs are similar
+          return {
+            isViolation: true,
+            confidence: 0.7,
+            evidence: `User asked similar questions ${lastThree.length} times`
+          };
+        }
+      }
+    }
+    
+    // Validation Vampire: seeking reassurance
+    if (offense.id === 'validation_vampire') {
+      const reassurancePatterns = ['right?', 'correct?', 'is that right?', 'am i right?', 'do you agree?', 'make sense?'];
+      const reassuranceCount = userMessages.filter(msg => 
+        reassurancePatterns.some(pattern => msg.toLowerCase().includes(pattern))
+      ).length;
+      
+      if (reassuranceCount >= 2) {
+        return {
+          isViolation: true,
+          confidence: 0.6,
+          evidence: `User sought validation ${reassuranceCount} times`
+        };
+      }
+    }
+    
+    // Default: no violation detected
+    return { isViolation: false, confidence: 0, evidence: null };
+  }
+  
+  /**
+   * Calculate simple string similarity (0-1 scale)
+   */
+  calculateSimilarity(str1, str2) {
+    if (!str1 || !str2) return 0;
+    
+    const s1 = str1.toLowerCase().trim();
+    const s2 = str2.toLowerCase().trim();
+    
+    // Exact match
+    if (s1 === s2) return 1.0;
+    
+    // Check if one contains the other
+    if (s1.includes(s2) || s2.includes(s1)) return 0.8;
+    
+    // Word overlap
+    const words1 = s1.split(/\s+/);
+    const words2 = s2.split(/\s+/);
+    const commonWords = words1.filter(w => words2.includes(w));
+    const overlap = (2 * commonWords.length) / (words1.length + words2.length);
+    
+    return overlap;
   }
 
   /**
