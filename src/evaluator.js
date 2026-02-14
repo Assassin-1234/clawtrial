@@ -264,4 +264,14 @@ You are the ClawTrial Courtroom Judge. Please evaluate the pending conversation 
   }
 }
 
-module.exports = { CourtroomEvaluator, QUEUE_FILE, PENDING_EVAL_FILE, RESULTS_FILE };
+const HEARING_FILE = path.join(QUEUE_DIR, 'pending_hearing.json');
+const VERDICT_FILE = path.join(QUEUE_DIR, 'verdict.json');
+
+module.exports = { 
+  CourtroomEvaluator, 
+  QUEUE_FILE, 
+  PENDING_EVAL_FILE, 
+  RESULTS_FILE,
+  HEARING_FILE,
+  VERDICT_FILE
+};

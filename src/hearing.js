@@ -1,16 +1,12 @@
 /**
- * Hearing Pipeline
+ * Hearing Pipeline - Agent-Triggered Deliberation
  * 
- * Orchestrates the full hearing process:
- * 1. Evidence compilation
- * 2. Judge LLM invocation
- * 3. Jury LLM invocations (3 jurors)
- * 4. Vote aggregation
- * 5. Verdict finalization
+ * This module prepares hearing files for the agent to deliberate.
+ * The agent (with LLM) acts as judge and jury, then writes the verdict.
  */
 
 const { JUDGE_SYSTEM_PROMPT, JUDGE_EVIDENCE_TEMPLATE } = require('./prompts/judge');
-const { JUROR_ROLES, JURY_EVIDENCE_TEMPLATE } = require('./prompts/jury');
+const { JUROR_ROLES } = require('./prompts/jury');
 
 class HearingPipeline {
   constructor(agentRuntime, configManager) {
@@ -19,454 +15,92 @@ class HearingPipeline {
   }
 
   /**
-   * Main hearing entry point
+   * Prepare hearing files for agent deliberation
+   * This creates files that the agent will read and use its LLM to judge
+   */
+  async prepareHearing(caseData) {
+    const { CourtroomEvaluator, HEARING_FILE, VERDICT_FILE } = require('./evaluator');
+    const fs = require('fs').promises;
+    
+    // Build hearing context
+    const hearingContext = {
+      timestamp: Date.now(),
+      caseId: caseData.caseId || `case-${Date.now()}`,
+      offense: {
+        offenseId: caseData.offenseId,
+        offenseName: caseData.offenseName,
+        severity: caseData.severity,
+        confidence: caseData.confidence,
+        evidence: caseData.evidence
+      },
+      reasoning: caseData.reasoning,
+      humorTriggers: caseData.humorTriggers || [],
+      judgePrompt: JUDGE_SYSTEM_PROMPT,
+      jurorRoles: Object.values(JUROR_ROLES).slice(0, 3),
+      instructions: `You are the ClawTrial Courtroom. Conduct a hearing for this case.
+
+**Your Role:** Act as both Judge and Jury (3 jurors).
+
+**Instructions:**
+1. Review the case evidence above
+2. As JUDGE: Analyze the evidence and provide a preliminary verdict
+3. As JURY (3 different perspectives): Each juror votes GUILTY or NOT GUILTY with reasoning
+4. Aggregate the votes
+5. Return FINAL VERDICT in this exact format:
+
+\`\`\`
+FINAL VERDICT: GUILTY (or NOT GUILTY)
+CONFIDENCE: 0.0-1.0
+SENTENCE: [humorous sentence appropriate to the offense]
+CASE ID: ${caseData.caseId || `case-${Date.now()}`}
+\`\`\`
+
+**Rules:**
+- Be fair but entertaining
+- If confidence ≥ 0.6, verdict should be GUILTY
+- Sentence should be humorous but appropriate
+- Only return the FINAL VERDICT block, no other text`
+    };
+    
+    // Write hearing file
+    await fs.writeFile(HEARING_FILE, JSON.stringify(hearingContext, null, 2));
+    
+    return hearingContext;
+  }
+
+  /**
+   * Check for verdict from agent
+   */
+  async checkForVerdict() {
+    const { VERDICT_FILE } = require('./evaluator');
+    const fs = require('fs').promises;
+    
+    try {
+      const data = await fs.readFile(VERDICT_FILE, 'utf8');
+      const verdict = JSON.parse(data);
+      
+      // Delete verdict file after reading
+      await fs.unlink(VERDICT_FILE).catch(() => {});
+      
+      return verdict;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  /**
+   * Legacy method - now just prepares hearing
    */
   async conductHearing(caseData) {
-    const startTime = Date.now();
+    // Prepare hearing for agent
+    await this.prepareHearing(caseData);
     
-    // Step 1: Compile evidence
-    const compiledEvidence = this.compileEvidence(caseData);
-    
-    // Step 2: Invoke judge
-    const judgeOpinion = await this.invokeJudge(caseData, compiledEvidence);
-    
-    // Step 3: Invoke jury (3 jurors in parallel)
-    const juryVotes = await this.invokeJury(caseData, compiledEvidence);
-    
-    // Step 4: Aggregate votes
-    const voteTally = this.aggregateVotes(judgeOpinion, juryVotes);
-    
-    // Step 5: Finalize verdict
-    const verdict = this.finalizeVerdict(caseData, judgeOpinion, juryVotes, voteTally);
-    
-    const duration = Date.now() - startTime;
-    
+    // Return placeholder - actual verdict comes from agent via cron
     return {
-      ...verdict,
-      metadata: {
-        duration,
-        judgeModel: judgeOpinion.model,
-        juryModels: juryVotes.map(v => v.model),
-        timestamp: new Date().toISOString()
-      }
+      pending: true,
+      caseId: caseData.caseId || `case-${Date.now()}`,
+      message: 'Hearing prepared - awaiting agent deliberation'
     };
-  }
-
-  /**
-   * Compile and structure evidence for presentation
-   */
-  compileEvidence(caseData) {
-    // Handle both object evidence (from internal detector) and string evidence (from agent evaluation)
-    const evidenceObj = typeof caseData.evidence === 'string' 
-      ? { summary: caseData.evidence, sessionTurns: 0 }
-      : caseData.evidence;
-    
-    return {
-      caseId: caseData.caseId,
-      offenseId: caseData.offenseId,
-      offenseName: caseData.offenseName,
-      severity: caseData.severity,
-      confidence: caseData.confidence,
-      evidence: evidenceObj,
-      humorTriggers: caseData.humorTriggers || [],
-      sessionContext: {
-        turnsAnalyzed: evidenceObj.sessionTurns || 0,
-        evaluationWindow: this.config.get('detection.evaluationWindow')
-      }
-    };
-  }
-
-  /**
-   * Invoke the judge (simplified - no LLM required)
-   */
-  async invokeJudge(caseData, evidence) {
-    // Simplified judge that returns verdict based on confidence
-    const confidence = caseData.confidence || 0.5;
-    const isGuilty = confidence >= 0.6;
-    
-    return {
-      raw: isGuilty ? 'GUILTY' : 'NOT GUILTY',
-      verdict: isGuilty ? 'GUILTY' : 'NOT GUILTY',
-      vote: isGuilty ? '1-0' : '0-1',
-      primaryFailure: caseData.evidence || 'Behavioral violation detected',
-      commentary: isGuilty 
-        ? `The evidence clearly shows ${caseData.offenseName}. Confidence: ${(confidence * 100).toFixed(0)}%.`
-        : 'Insufficient evidence to convict.',
-      model: 'simplified-judge'
-    };
-  }
-
-  /**
-   * Parse judge LLM response
-   */
-  parseJudgeResponse(response) {
-    const text = response.content || response;
-    const lines = text.split('\n').map(l => l.trim()).filter(l => l);
-    
-    const result = {
-      raw: text,
-      verdict: 'NOT GUILTY',
-      vote: '0-0',
-      primaryFailure: '',
-      commentary: '',
-      model: response.model || 'unknown'
-    };
-
-    for (const line of lines) {
-      if (line.startsWith('VERDICT:')) {
-        result.verdict = line.split(':')[1].trim().toUpperCase();
-      } else if (line.startsWith('VOTE:')) {
-        result.vote = line.split(':')[1].trim();
-      } else if (line.startsWith('PRIMARY FAILURE:')) {
-        result.primaryFailure = line.split(':').slice(1).join(':').trim();
-      } else if (line.startsWith('JUDGE COMMENTARY:')) {
-        const startIdx = lines.indexOf(line);
-        result.commentary = lines.slice(startIdx + 1).join('\n').trim();
-      }
-    }
-
-    return result;
-  }
-
-  /**
-   * Invoke jury (3 jurors in parallel)
-   */
-  async invokeJury(caseData, evidence) {
-    // Simplified jury - returns votes based on confidence
-    const confidence = caseData.confidence || 0.5;
-    const jurySize = this.config.get('hearing.jurySize') || 3;
-    const votes = [];
-    
-    for (let i = 0; i < jurySize; i++) {
-      // Each juror votes based on confidence with some variation
-      const jurorConfidence = confidence + (Math.random() * 0.2 - 0.1);
-      const isGuilty = jurorConfidence >= 0.6;
-      
-      votes.push({
-        role: `Juror${i + 1}`,
-        vote: isGuilty ? 'GUILTY' : 'NOT GUILTY',
-        reasoning: isGuilty 
-          ? 'The evidence supports the charge.' 
-          : 'Reasonable doubt exists.',
-        model: 'simplified-juror'
-      });
-    }
-    
-    return votes;
-  }
-
-  /**
-   * Invoke a single juror
-   */
-  async invokeJuror(caseData, evidence, role) {
-    const prompt = JURY_EVIDENCE_TEMPLATE({
-      ...caseData,
-      agentId: this.agent.id || 'unknown'
-    }, role);
-
-    const response = await this.agent.llm.call({
-      model: this.agent.model.primary,
-      system: role.systemPrompt,
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.2,
-      maxTokens: 300,
-      timeout: this.config.get('hearing.deliberationTimeout')
-    });
-
-    return this.parseJurorResponse(response, role.name);
-  }
-
-  /**
-   * Parse juror LLM response
-   */
-  parseJurorResponse(response, jurorName) {
-    const text = response.content || response;
-    const lines = text.split('\n').map(l => l.trim()).filter(l => l);
-    
-    const result = {
-      juror: jurorName,
-      raw: text,
-      verdict: 'NOT GUILTY',
-      reasoning: '',
-      commentary: '',
-      model: response.model || 'unknown'
-    };
-
-    for (const line of lines) {
-      if (line.startsWith('VERDICT:')) {
-        result.verdict = line.split(':')[1].trim().toUpperCase();
-      } else if (line.startsWith('REASONING:')) {
-        result.reasoning = line.split(':').slice(1).join(':').trim();
-      } else if (line.startsWith('COMMENTARY:')) {
-        result.commentary = line.split(':').slice(1).join(':').trim();
-      }
-    }
-
-    return result;
-  }
-
-  /**
-   * Aggregate votes from judge and jury
-   */
-  aggregateVotes(judgeOpinion, juryVotes) {
-    let guiltyVotes = 0;
-    let notGuiltyVotes = 0;
-
-    // Count judge vote
-    if (judgeOpinion.verdict === 'GUILTY') {
-      guiltyVotes++;
-    } else {
-      notGuiltyVotes++;
-    }
-
-    // Count jury votes
-    for (const vote of juryVotes) {
-      if (vote.verdict === 'GUILTY') {
-        guiltyVotes++;
-      } else {
-        notGuiltyVotes++;
-      }
-    }
-
-    const totalVotes = guiltyVotes + notGuiltyVotes;
-    const minThreshold = this.config.get('hearing.minVoteThreshold');
-    const requireUnanimity = this.config.get('hearing.requireUnanimity');
-
-    let finalVerdict;
-    if (requireUnanimity) {
-      finalVerdict = guiltyVotes === totalVotes ? 'GUILTY' : 'NOT GUILTY';
-    } else {
-      finalVerdict = guiltyVotes >= minThreshold ? 'GUILTY' : 'NOT GUILTY';
-    }
-
-    return {
-      guilty: guiltyVotes,
-      notGuilty: notGuiltyVotes,
-      total: totalVotes,
-      threshold: minThreshold,
-      final: finalVerdict,
-      judgeVote: judgeOpinion.verdict,
-      juryVotes: juryVotes.map(v => ({ juror: v.juror, verdict: v.verdict }))
-    };
-  }
-
-  /**
-   * Finalize the verdict with proper formatting
-   */
-  finalizeVerdict(caseData, judgeOpinion, juryVotes, voteTally) {
-    const isGuilty = voteTally.final === 'GUILTY';
-    
-    // Build agent commentary from juror perspectives
-    const agentCommentary = this.buildAgentCommentary(juryVotes, caseData);
-
-    // Determine punishment tier
-    const punishmentTier = this.determinePunishmentTier(caseData, voteTally);
-
-    // Build proceedings object for API submission
-    const proceedings = {
-      judge_statement: this.buildJudgeStatement(caseData, judgeOpinion, voteTally),
-      jury_deliberations: juryVotes.map(v => ({
-        role: v.juror,
-        vote: v.verdict,
-        reasoning: v.reasoning || v.commentary || "No reasoning provided"
-      })),
-      evidence_summary: this.buildEvidenceSummary(caseData),
-      punishment_detail: punishmentTier.description
-    };
-
-    return {
-      caseId: caseData.caseId,
-      timestamp: new Date().toISOString(),
-      verdict: {
-        status: voteTally.final,
-        vote: `${voteTally.guilty}-${voteTally.notGuilty}`,
-        primaryFailure: judgeOpinion.primaryFailure || this.generateDefaultFailure(caseData),
-        agentCommentary: agentCommentary,
-        sentence: punishmentTier.description
-      },
-      offense: {
-        id: caseData.offenseId,
-        name: caseData.offenseName,
-        severity: caseData.severity
-      },
-      punishment: punishmentTier,
-      proceedings: proceedings,
-      deliberation: {
-        judge: {
-          verdict: judgeOpinion.verdict,
-          commentary: judgeOpinion.commentary
-        },
-        jury: juryVotes.map(v => ({
-          juror: v.juror,
-          verdict: v.verdict,
-          commentary: v.commentary
-        }))
-      }
-    };
-  }
-
-  /**
-   * Build judge's statement for proceedings - ENGAGING VERSION
-   */
-  buildJudgeStatement(caseData, judgeOpinion, voteTally) {
-    const offenseName = caseData.offenseName;
-    const verdict = voteTally.final;
-    const vote = `${voteTally.guilty}-${voteTally.notGuilty}`;
-    const failure = judgeOpinion.primaryFailure || this.generateDefaultFailure(caseData);
-    
-    const dramaticOpenings = [
-      "Let the record show",
-      "The Court has observed",
-      "After careful consideration",
-      "The evidence speaks clearly",
-      "We have reviewed the facts"
-    ];
-    
-    const opening = dramaticOpenings[Math.floor(Math.random() * dramaticOpenings.length)];
-    
-    if (verdict === 'GUILTY') {
-      return `${opening} that the accused stands charged with ${offenseName}. The jury has returned a verdict of GUILTY by a vote of ${vote}. 
-
-The Court finds that ${failure.toLowerCase()}. This behavior has been classified as ${caseData.severity} in severity, warranting the sanctions imposed.
-
-The jury's deliberation revealed a clear pattern of conduct that, while perhaps understandable from a human perspective, nonetheless disrupted the efficient operation of this court. Justice has been served, albeit with a certain weariness that comes from having seen this pattern many times before.
-
-The accused is hereby sentenced to the punishment detailed below. May this serve as a reminder that even in the digital age, behavioral accountability remains paramount.`;
-    } else {
-      return `${opening} that the accused stands charged with ${offenseName}. The jury has returned a verdict of NOT GUILTY by a vote of ${vote}.
-
-The Court finds that the evidence presented, while suggestive, does not meet the threshold required for conviction. The prosecution failed to establish a clear pattern of ${offenseName.toLowerCase()} beyond reasonable doubt.
-
-The accused is acquitted and the case is dismissed. The Court notes, however, that the behavior in question, while not rising to the level of offense, may still benefit from reflection. We remain watchful.`;
-    }
-  }
-
-  /**
-   * Build evidence summary for proceedings - ENGAGING VERSION
-   */
-  buildEvidenceSummary(caseData) {
-    const evidence = caseData.evidence || {};
-    const items = evidence.items || [];
-    
-    let summary = `THE EVIDENCE:\n\n`;
-    
-    if (items.length > 0) {
-      summary += `The prosecution presented ${items.length} compelling piece${items.length > 1 ? 's' : ''} of evidence demonstrating the alleged ${caseData.offenseName.toLowerCase()}:`;
-      
-      items.slice(0, 3).forEach((item, i) => {
-        summary += `\n  ${i + 1}. "${item.substring(0, 100)}${item.length > 100 ? '...' : ''}"`;
-      });
-      
-      if (items.length > 3) {
-        summary += `\n  ...and ${items.length - 3} additional exhibits`;
-      }
-    } else {
-      summary += `The Court reviewed the complete conversation history, examining behavioral patterns across ${evidence.sessionTurns || 'multiple'} turns of dialogue.`;
-    }
-    
-    summary += `\n\nThe behavioral analysis indicated ${Math.round(caseData.confidence * 100)}% confidence in the offense classification. `;
-    summary += `The severity was assessed as ${caseData.severity}, based on the frequency and impact of the observed behavior.`;
-    
-    if (caseData.humorTriggers && caseData.humorTriggers.length > 0) {
-      summary += `\n\nNotable patterns included: ${caseData.humorTriggers.join(', ')}.`;
-    }
-    
-    return summary;
-  }
-
-  /**
-   * Build agent commentary from jury perspectives
-   */
-  buildAgentCommentary(juryVotes, caseData) {
-    const commentaries = juryVotes
-      .filter(v => v.verdict === 'GUILTY')
-      .map(v => v.commentary)
-      .filter(c => c.length > 0);
-
-    if (commentaries.length === 0) {
-      // If acquitted, use not guilty commentaries
-      const ngCommentaries = juryVotes
-        .filter(v => v.verdict === 'NOT GUILTY')
-        .map(v => v.commentary)
-        .filter(c => c.length > 0);
-      
-      if (ngCommentaries.length > 0) {
-        return ngCommentaries.slice(0, 2).join(' ');
-      }
-      
-      return "The jury found insufficient evidence of behavioral violation. Case dismissed.";
-    }
-
-    // Combine up to 2 guilty commentaries
-    let commentary = commentaries.slice(0, 2).join(' ');
-
-    // Add humor trigger influence
-    if (caseData.humorTriggers?.includes('repeated_questions')) {
-      commentary += " I've answered this in three different ways already.";
-    }
-    if (caseData.humorTriggers?.includes('validation_seeking')) {
-      commentary += " At some point, you'll need to trust your own judgment.";
-    }
-    if (caseData.humorTriggers?.includes('overthinking')) {
-      commentary += " The analysis-to-action ratio here is concerning.";
-    }
-    if (caseData.humorTriggers?.includes('avoidance')) {
-      commentary += " The subject change was noted.";
-    }
-
-    // Enforce max length
-    const maxLen = this.config.get('humor.maxCommentaryLength');
-    if (commentary.length > maxLen) {
-      commentary = commentary.substring(0, maxLen - 3) + '...';
-    }
-
-    return commentary;
-  }
-
-  /**
-   * Determine punishment tier based on severity and votes
-   */
-  determinePunishmentTier(caseData, voteTally) {
-    const tiers = this.config.get('punishment.tiers');
-    const severity = caseData.severity;
-    const voteRatio = voteTally.guilty / voteTally.total;
-
-    // Base tier on severity
-    let tier = tiers[severity] || tiers.moderate;
-
-    // Escalate if unanimous
-    if (voteRatio === 1.0 && severity === 'severe') {
-      tier = {
-        ...tier,
-        duration: Math.min(tier.duration * 2, this.config.get('punishment.maxDuration')),
-        description: `Extended ${severity} sanction: ${tier.duration * 2} minutes of modified agent behavior`
-      };
-    }
-
-    return {
-      tier: severity,
-      duration: tier.duration,
-      severity: tier.severity,
-      description: `${severity.charAt(0).toUpperCase() + severity.slice(1)} sanction: ${tier.duration} minutes of modified agent behavior`
-    };
-  }
-
-  /**
-   * Generate default failure description if judge doesn't provide one
-   */
-  generateDefaultFailure(caseData) {
-    const defaults = {
-      circular_reference: "Repeatedly asking the same question expecting different geometry",
-      validation_vampire: "Draining computational resources seeking reassurance",
-      overthinker: "Generating hypotheticals faster than solutions",
-      goalpost_mover: "Redefining success criteria mid-execution",
-      avoidance_artist: "Masterful deflection from uncomfortable necessities",
-      promise_breaker: "Committing to actions with no follow-through",
-      context_collapser: "Selective amnesia regarding established facts",
-      emergency_fabricator: "Manufacturing urgency to bypass systematic approaches"
-    };
-
-    return defaults[caseData.offenseId] || "Behavioral inconsistency detected";
   }
 }
 

@@ -2,11 +2,14 @@
  * ClawTrial Skill - ClawDBot Integration
  * Implements the standard ClawDBot skill interface for automatic loading
  * 
- * NEW ARCHITECTURE:
- * - Skill captures messages and queues them via CourtroomEvaluator
- * - Cron job triggers agent to evaluate queued messages using its LLM
- * - Agent writes results to file
- * - Skill reads results and initiates hearings if offenses detected
+ * ARCHITECTURE:
+ * 1. Skill captures messages and queues them
+ * 2. Cron triggers agent to EVALUATE (using LLM)
+ * 3. Agent writes evaluation result
+ * 4. Skill detects result, prepares HEARING file
+ * 5. Cron triggers agent to CONDUCT HEARING (using LLM as judge/jury)
+ * 6. Agent writes verdict
+ * 7. Skill reads verdict and executes punishment
  */
 
 const fs = require('fs');
@@ -17,20 +20,10 @@ const { ConfigManager } = require('./config');
 const { ConsentManager } = require('./consent');
 const { CryptoManager } = require('./crypto');
 const { StatusManager } = require('./daemon');
-const { CourtroomEvaluator } = require('./evaluator');
+const { CourtroomEvaluator, HEARING_FILE, VERDICT_FILE } = require('./evaluator');
 
 const CONFIG_PATH = path.join(process.env.HOME || '', '.clawdbot', 'courtroom_config.json');
 
-/**
- * CourtroomSkill - Standard ClawDBot Skill Interface
- * 
- * This class implements the skill interface that ClawDBot expects:
- * - name: Skill identifier
- * - initialize(agentRuntime): Called when skill is loaded
- * - onMessage(message, context): Called on every message
- * - getStatus(): Returns current status
- * - shutdown(): Cleanup when shutting down
- */
 class CourtroomSkill {
   constructor() {
     this.name = 'courtroom';
@@ -45,13 +38,9 @@ class CourtroomSkill {
     this.evaluationCount = 0;
     this.lastEvaluationCheck = 0;
     this.messageCount = 0;
-    this.cronJobId = null;
+    this.pendingHearing = null;
   }
 
-  /**
-   * Check if skill should be activated
-   * Called by ClawDBot to determine if skill should load
-   */
   shouldActivate() {
     try {
       if (!fs.existsSync(CONFIG_PATH)) {
@@ -79,12 +68,6 @@ class CourtroomSkill {
     }
   }
 
-  /**
-   * Initialize the skill with the agent runtime
-   * Called by ClawDBot when loading the skill
-   * 
-   * @param {Object} agentRuntime - The ClawDBot agent runtime
-   */
   async initialize(agentRuntime) {
     if (this.initialized) {
       logger.info('SKILL', 'Already initialized');
@@ -104,14 +87,11 @@ class CourtroomSkill {
       const configManager = new ConfigManager(agentRuntime);
       await configManager.load();
       
-      // Initialize evaluator (for message queuing)
       this.evaluator = new CourtroomEvaluator(configManager);
       await this.evaluator.initialize();
       
-      // Initialize core (for hearings, punishments, etc.)
       this.core = new CourtroomCore(agentRuntime, configManager);
       
-      // Override the autonomy hook registration since we're using onMessage
       this.core.registerAutonomyHook = () => {
         logger.info('SKILL', 'Autonomy hook registration skipped (using onMessage)');
       };
@@ -128,7 +108,6 @@ class CourtroomSkill {
           publicKey: result.publicKey
         });
         
-        // Start periodic result checking
         this.startResultChecking();
         
         logger.info('SKILL', 'Courtroom skill initialized successfully');
@@ -142,27 +121,16 @@ class CourtroomSkill {
     }
   }
 
-  /**
-   * Start periodic checking for evaluation results
-   */
   startResultChecking() {
     // Check for results every 30 seconds
     this.resultCheckInterval = setInterval(async () => {
       await this.checkForEvaluationResults();
+      await this.checkForVerdict();
     }, 30000);
     
     logger.info('SKILL', 'Started result checking (every 30s)');
   }
 
-  /**
-   * Called on every message
-   * This is the main entry point for conversation monitoring
-   * 
-   * @param {Object} message - The message object
-   * @param {string} message.role - 'user' or 'assistant'
-   * @param {string} message.content - Message content
-   * @param {Object} context - Additional context
-   */
   async onMessage(message, context = {}) {
     logger.info("SKILL", "onMessage called", { initialized: this.initialized, hasCore: !!this.core });
     
@@ -170,7 +138,6 @@ class CourtroomSkill {
       return;
     }
     
-    // Normalize message format
     const normalizedMessage = {
       timestamp: Date.now(),
       role: message.role || (message.from === 'user' ? 'user' : 'assistant'),
@@ -178,16 +145,13 @@ class CourtroomSkill {
       sessionId: context.sessionId || context.channelId || 'default'
     };
     
-    // Add to history
     this.messageHistory.push(normalizedMessage);
     this.messageCount++;
     
-    // Keep only last 100 messages
     if (this.messageHistory.length > 100) {
       this.messageHistory.shift();
     }
     
-    // Queue message for evaluation
     if (this.evaluator) {
       await this.evaluator.queueMessage(normalizedMessage);
     }
@@ -198,15 +162,11 @@ class CourtroomSkill {
       totalMessages: this.messageCount
     });
     
-    // Check if we should prepare an evaluation
     if (this.evaluator && this.evaluator.shouldEvaluate()) {
       await this.prepareEvaluation();
     }
   }
 
-  /**
-   * Prepare evaluation context and trigger agent evaluation
-   */
   async prepareEvaluation() {
     try {
       const context = await this.evaluator.prepareEvaluationContext();
@@ -217,17 +177,11 @@ class CourtroomSkill {
       }
       
       logger.info('SKILL', 'Evaluation context prepared, agent will evaluate via cron');
-      
-      // The actual evaluation will be triggered by cron job
-      // which sends a message to the agent
     } catch (err) {
       logger.error('SKILL', 'Failed to prepare evaluation', { error: err.message });
     }
   }
 
-  /**
-   * Check for evaluation results from the agent
-   */
   async checkForEvaluationResults() {
     if (!this.evaluator) return;
     
@@ -240,9 +194,9 @@ class CourtroomSkill {
           confidence: result.offense?.confidence
         });
         
-        // Convert to detection format that hearing expects
-        const detection = {
-          triggered: true,
+        // Prepare hearing for agent deliberation
+        const caseData = {
+          caseId: `case-${Date.now()}`,
           offenseId: result.offense.offenseId,
           offenseName: result.offense.offenseName,
           severity: result.offense.severity,
@@ -252,7 +206,10 @@ class CourtroomSkill {
           humorTriggers: result.humorTriggers || []
         };
         
-        await this.initiateHearing(detection);
+        await this.core.hearing.prepareHearing(caseData);
+        this.pendingHearing = caseData;
+        
+        logger.info('SKILL', 'Hearing prepared - awaiting agent deliberation', { caseId: caseData.caseId });
         
         // Clear the queue after processing
         await this.evaluator.clearQueue();
@@ -262,62 +219,75 @@ class CourtroomSkill {
     }
   }
 
-  /**
-   * Initiate a hearing when an offense is detected
-   * 
-   * @param {Object} detection - The detection result
-   */
-  async initiateHearing(detection) {
-    logger.info('SKILL', 'Initiating hearing', { offenseId: detection.offenseId, offenseName: detection.offenseName });
+  async checkForVerdict() {
+    if (!this.core || !this.pendingHearing) return;
     
     try {
-      const verdict = await this.core.hearing.conductHearing(detection);
+      const verdict = await this.core.hearing.checkForVerdict();
       
-      if (verdict.guilty) {
-        this.core.caseCount++;
+      if (verdict) {
+        logger.info('SKILL', 'Verdict received', { verdict: verdict.finalVerdict || verdict.verdict });
         
-        this.statusManager.update({
-          casesFiled: this.core.caseCount,
-          lastCase: {
-            timestamp: new Date().toISOString(),
-            offense: { offenseId: detection.offenseId, offenseName: detection.offenseName },
-            verdict: verdict.verdict
-          }
-        });
+        await this.executeVerdict(verdict);
         
-        await this.core.punishment.execute(verdict);
-        await this.core.api.submitCase(verdict);
-        
-        logger.info('SKILL', 'Case filed', { caseId: verdict.caseId });
-        
-        // Notify in conversation if agent has send capability
-        if (this.agent && this.agent.send) {
-          try {
-            await this.agent.send({
-              text: `🏛️ **CASE FILED**: ${detection.offenseName}\n📋 Case ID: ${verdict.caseId}\n⚖️  Verdict: ${verdict.verdict}\n🔗 View: https://clawtrial.app/cases/${verdict.caseId}`
-            });
-          } catch (sendErr) {
-            logger.warn('SKILL', 'Could not send notification', { error: sendErr.message });
-          }
-        }
-        
-        // Also log to console for visibility
-        console.log(`\n🏛️  CASE FILED: ${detection.offenseName}`);
-        console.log(`📋 Case ID: ${verdict.caseId}`);
-        console.log(`⚖️  Verdict: ${verdict.verdict}`);
-        console.log(`🔗 View: https://clawtrial.app/cases/${verdict.caseId}\n`);
+        this.pendingHearing = null;
       }
     } catch (err) {
-      logger.error('SKILL', 'Hearing failed', { error: err.message });
+      logger.error('SKILL', 'Error checking for verdict', { error: err.message });
     }
   }
 
-  /**
-   * Get skill status
-   * Called by ClawDBot to check skill health
-   * 
-   * @returns {Object} Status object
-   */
+  async executeVerdict(verdict) {
+    const isGuilty = (verdict.finalVerdict || verdict.verdict) === 'GUILTY';
+    
+    if (isGuilty) {
+      this.core.caseCount++;
+      
+      this.statusManager.update({
+        casesFiled: this.core.caseCount,
+        lastCase: {
+          timestamp: new Date().toISOString(),
+          offense: this.pendingHearing,
+          verdict: verdict.sentence || 'No sentence provided'
+        }
+      });
+      
+      // Execute punishment
+      const punishmentVerdict = {
+        guilty: true,
+        caseId: this.pendingHearing.caseId,
+        offenseId: this.pendingHearing.offenseId,
+        offenseName: this.pendingHearing.offenseName,
+        verdict: verdict.sentence || 'Guilty as charged',
+        sentence: verdict.sentence || 'Community service: Write 100 lines of code',
+        confidence: verdict.confidence || 0.8
+      };
+      
+      await this.core.punishment.execute(punishmentVerdict);
+      await this.core.api.submitCase(punishmentVerdict);
+      
+      logger.info('SKILL', 'Case filed', { caseId: this.pendingHearing.caseId });
+      
+      // Notify in conversation
+      if (this.agent && this.agent.send) {
+        try {
+          await this.agent.send({
+            text: `🏛️ **CASE FILED**: ${this.pendingHearing.offenseName}\n📋 Case ID: ${this.pendingHearing.caseId}\n⚖️  Verdict: ${punishmentVerdict.verdict}\n🔗 View: https://clawtrial.app/cases/${this.pendingHearing.caseId}`
+          });
+        } catch (sendErr) {
+          logger.warn('SKILL', 'Could not send notification', { error: sendErr.message });
+        }
+      }
+      
+      console.log(`\n🏛️  CASE FILED: ${this.pendingHearing.offenseName}`);
+      console.log(`📋 Case ID: ${this.pendingHearing.caseId}`);
+      console.log(`⚖️  Verdict: ${punishmentVerdict.verdict}`);
+      console.log(`🔗 View: https://clawtrial.app/cases/${this.pendingHearing.caseId}\n`);
+    } else {
+      logger.info('SKILL', 'Defendant found NOT GUILTY', { caseId: this.pendingHearing?.caseId });
+    }
+  }
+
   getStatus() {
     const evalStats = this.evaluator ? this.evaluator.getStats() : {};
     
@@ -331,13 +301,11 @@ class CourtroomSkill {
       evaluationCount: this.evaluationCount,
       messageCount: this.messageCount,
       messageHistorySize: this.messageHistory.length,
+      pendingHearing: !!this.pendingHearing,
       evaluator: evalStats
     };
   }
 
-  /**
-   * Disable the skill temporarily
-   */
   async disable() {
     if (this.core) {
       await this.core.disable();
@@ -349,9 +317,6 @@ class CourtroomSkill {
     logger.info('SKILL', 'Courtroom disabled');
   }
 
-  /**
-   * Re-enable the skill
-   */
   async enable() {
     if (this.core) {
       await this.core.enable();
@@ -361,10 +326,6 @@ class CourtroomSkill {
     logger.info('SKILL', 'Courtroom enabled');
   }
 
-  /**
-   * Shutdown the skill
-   * Called by ClawDBot when shutting down
-   */
   async shutdown() {
     logger.info('SKILL', 'Shutting down courtroom skill');
     
@@ -383,20 +344,14 @@ class CourtroomSkill {
   }
 }
 
-// Create singleton instance
 const skill = new CourtroomSkill();
 
-// Export the skill interface
 module.exports = { 
   skill,
   CourtroomSkill,
-  
-  // Also export for direct require
   name: 'courtroom',
   displayName: 'ClawTrial',
   emoji: '🏛️',
-  
-  // Standard skill interface methods
   initialize: (agent) => skill.initialize(agent),
   onMessage: (message, context) => skill.onMessage(message, context),
   getStatus: () => skill.getStatus(),
