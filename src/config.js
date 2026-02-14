@@ -42,7 +42,7 @@ const DEFAULT_CONFIG = {
   // API submission settings
   api: {
     enabled: true,
-    endpoint: 'https://api.clawtrial.app/api/v1/cases',
+    endpoint: 'https://api.clawtrial.app/cases',
     timeout: 10000,
     retryAttempts: 3,
     retryDelay: 5000,

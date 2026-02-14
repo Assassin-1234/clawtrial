@@ -112,7 +112,7 @@ async function setup() {
     },
     api: {
       enabled: true,
-      endpoint: 'https://api.clawtrial.app/api/v1/cases'
+      endpoint: 'https://api.clawtrial.app/cases'
     },
     enabled: true
   };
