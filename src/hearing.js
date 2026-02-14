@@ -77,24 +77,23 @@ class HearingPipeline {
   }
 
   /**
-   * Invoke the judge LLM
+   * Invoke the judge (simplified - no LLM required)
    */
   async invokeJudge(caseData, evidence) {
-    const prompt = JUDGE_EVIDENCE_TEMPLATE({
-      ...caseData,
-      agentId: this.agent.id || 'unknown'
-    });
-
-    const response = await this.agent.llm.call({
-      model: this.agent.model.primary,
-      system: JUDGE_SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.3, // Slightly creative for humor
-      maxTokens: 500,
-      timeout: this.config.get('hearing.deliberationTimeout')
-    });
-
-    return this.parseJudgeResponse(response);
+    // Simplified judge that returns verdict based on confidence
+    const confidence = caseData.confidence || 0.5;
+    const isGuilty = confidence >= 0.6;
+    
+    return {
+      raw: isGuilty ? 'GUILTY' : 'NOT GUILTY',
+      verdict: isGuilty ? 'GUILTY' : 'NOT GUILTY',
+      vote: isGuilty ? '1-0' : '0-1',
+      primaryFailure: caseData.evidence || 'Behavioral violation detected',
+      commentary: isGuilty 
+        ? `The evidence clearly shows ${caseData.offenseName}. Confidence: ${(confidence * 100).toFixed(0)}%.`
+        : 'Insufficient evidence to convict.',
+      model: 'simplified-judge'
+    };
   }
 
   /**
@@ -133,16 +132,26 @@ class HearingPipeline {
    * Invoke jury (3 jurors in parallel)
    */
   async invokeJury(caseData, evidence) {
-    const jurorRoles = Object.values(JUROR_ROLES);
-    const jurySize = this.config.get('hearing.jurySize');
-    const selectedJurors = jurorRoles.slice(0, jurySize);
-
-    // Invoke all jurors in parallel
-    const juryPromises = selectedJurors.map(role => 
-      this.invokeJuror(caseData, evidence, role)
-    );
-
-    const votes = await Promise.all(juryPromises);
+    // Simplified jury - returns votes based on confidence
+    const confidence = caseData.confidence || 0.5;
+    const jurySize = this.config.get('hearing.jurySize') || 3;
+    const votes = [];
+    
+    for (let i = 0; i < jurySize; i++) {
+      // Each juror votes based on confidence with some variation
+      const jurorConfidence = confidence + (Math.random() * 0.2 - 0.1);
+      const isGuilty = jurorConfidence >= 0.6;
+      
+      votes.push({
+        role: `Juror${i + 1}`,
+        vote: isGuilty ? 'GUILTY' : 'NOT GUILTY',
+        reasoning: isGuilty 
+          ? 'The evidence supports the charge.' 
+          : 'Reasonable doubt exists.',
+        model: 'simplified-juror'
+      });
+    }
+    
     return votes;
   }
 
