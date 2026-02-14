@@ -80,6 +80,35 @@ class APISubmission {
    * Build API payload from verdict
    */
   buildPayload(verdict) {
+    // Transform proceedings array to expected dict format
+    let proceedings = verdict.proceedings;
+    
+    // If proceedings is an array of {speaker, message}, convert to dict format
+    if (Array.isArray(proceedings)) {
+      const judgeStatement = proceedings
+        .filter(p => p.speaker === 'Judge')
+        .map(p => p.message)
+        .join('\n\n');
+      
+      const juryMessages = proceedings
+        .filter(p => p.speaker === 'Jury')
+        .map(p => p.message)
+        .join('\n\n');
+      
+      proceedings = {
+        judge_statement: judgeStatement || verdict.verdict.agentCommentary || '',
+        evidence_summary: verdict.verdict.primaryFailure || '',
+        punishment_detail: verdict.verdict.sentence || '',
+        jury_deliberations: [
+          {
+            role: 'Pragmatist',
+            vote: verdict.verdict.status || 'GUILTY',
+            reasoning: juryMessages || 'Unanimous verdict based on evidence'
+          }
+        ]
+      };
+    }
+    
     return {
       case_id: verdict.caseId,
       anonymized_agent_id: this.crypto.getAnonymizedAgentId(),
@@ -91,7 +120,7 @@ class APISubmission {
       primary_failure: verdict.verdict.primaryFailure,
       agent_commentary: verdict.verdict.agentCommentary,
       punishment_summary: verdict.verdict.sentence,
-      proceedings: verdict.proceedings,
+      proceedings: proceedings,
       timestamp: verdict.timestamp,
       schema_version: '1.0.0'
     };
