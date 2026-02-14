@@ -225,19 +225,40 @@ function status() {
     return;
   }
 
-  // Check if courtroom is running via status file
-  const { getCourtroomStatus } = require('../src/daemon');
-  const runtimeStatus = getCourtroomStatus();
-
   log('\n🏛️  ClawTrial Status\n');
   log(`Config: ${config.enabled !== false ? '✅ Active' : '⏸️  Disabled'}`);
   log(`Consent: ${config.consent?.granted ? '✅ Granted' : '❌ Not granted'}`);
   log(`Installed: ${new Date(config.installedAt).toLocaleDateString()}`);
   
-  if (runtimeStatus.running) {
+  // Check if skill is initialized by looking at the skill module
+  let skillRunning = false;
+  let skillStatus = null;
+  try {
+    const skillModule = require('../src/skill');
+    if (skillModule.skill) {
+      skillRunning = skillModule.skill.initialized;
+      skillStatus = skillModule.getStatus ? skillModule.getStatus() : null;
+    }
+  } catch (err) {
+    // Skill not loaded yet
+  }
+  
+  // Also check status file for additional info
+  const { getCourtroomStatus } = require('../src/daemon');
+  const runtimeStatus = getCourtroomStatus();
+  
+  // Consider it running if either the skill is initialized OR the status file says running
+  const isRunning = skillRunning || runtimeStatus.running;
+  
+  if (isRunning) {
     log(`\n🏛️  Courtroom: ✅ Running`);
-    log(`  Process ID: ${runtimeStatus.pid}`);
-    log(`  Cases Filed: ${runtimeStatus.casesFiled || 0}`);
+    if (skillStatus) {
+      log(`  Messages Monitored: ${skillStatus.messageCount || 0}`);
+      log(`  Evaluations: ${skillStatus.evaluationCount || 0}`);
+    }
+    if (runtimeStatus.casesFiled) {
+      log(`  Cases Filed: ${runtimeStatus.casesFiled}`);
+    }
     if (runtimeStatus.lastCase) {
       log(`  Last Case: ${new Date(runtimeStatus.lastCase.timestamp).toLocaleString()}`);
     }
@@ -245,6 +266,9 @@ function status() {
     log(`\n🏛️  Courtroom: ⏸️  Not running`);
     log('  The courtroom runs as a ClawDBot skill.');
     log('  It will activate when ClawDBot loads the package.');
+    log('');
+    log('  If ClawDBot is already running, try:');
+    log('    killall clawdbot && clawdbot');
   }
   
   if (fs.existsSync(keysPath)) {
