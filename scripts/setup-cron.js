@@ -9,7 +9,7 @@
 const { execSync } = require('child_process');
 const path = require('path');
 
-const COURTROOM_DIR = path.join(process.env.HOME || '', '.clawdbot', 'courtroom');
+const COURTROOM_DIR = path.join(require('../src/environment').getConfigDir(), 'courtroom');
 const PENDING_EVAL_FILE = path.join(COURTROOM_DIR, 'pending_eval.json');
 const RESULTS_FILE = path.join(COURTROOM_DIR, 'eval_results.jsonl');
 
@@ -70,7 +70,7 @@ async function setupCron() {
     
     // Add the job using clawdbot's cron system
     // We'll use the CLI approach since we can't directly import the cron tool
-    const cmd = `clawdbot cron add --id courtroom-evaluation --schedule "*/5 * * * *" --text "${EVALUATION_PROMPT.replace(/"/g, '\\"')}"`;
+    const cmd = `require('../src/environment').getCommand() + ' cron' add --id courtroom-evaluation --schedule "*/5 * * * *" --text "${EVALUATION_PROMPT.replace(/"/g, '\\"')}"`;
     
     console.log('Creating cron job...');
     console.log('Schedule: Every 5 minutes');

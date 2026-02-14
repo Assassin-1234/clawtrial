@@ -10,7 +10,7 @@
 const fs = require('fs').promises;
 const path = require('path');
 
-const COURTROOM_DIR = path.join(process.env.HOME || '', '.clawdbot', 'courtroom');
+const COURTROOM_DIR = path.join(require('../src/environment').getConfigDir(), 'courtroom');
 const PENDING_EVAL_FILE = path.join(COURTROOM_DIR, 'pending_eval.json');
 const RESULTS_FILE = path.join(COURTROOM_DIR, 'eval_results.jsonl');
 

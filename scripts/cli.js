@@ -8,7 +8,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const configPath = path.join(process.env.HOME || '', '.clawdbot', 'courtroom_config.json');
+const configPath = path.join(require('../src/environment').getConfigDir(), 'courtroom_config.json');
 
 function loadConfig() {
   if (!fs.existsSync(configPath)) {
@@ -90,7 +90,7 @@ switch (command) {
           }
           
           // Delete keys
-          const keysPath = path.join(process.env.HOME || '', '.clawdbot', 'courtroom_keys.json');
+          const keysPath = path.join(require('../src/environment').getConfigDir(), 'courtroom_keys.json');
           if (fs.existsSync(keysPath)) {
             fs.unlinkSync(keysPath);
           }

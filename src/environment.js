@@ -1,3 +1,73 @@
+
+/**
+ * Detect which bot is installed (clawdbot, moltbot, or openclaw)
+ * Returns the bot configuration with name, directory, and command
+ */
+function detectBot() {
+  const homeDir = process.env.HOME || process.env.USERPROFILE || '';
+  
+  const bots = [
+    { name: 'openclaw', dir: '.openclaw', config: 'openclaw.json', command: 'openclaw' },
+    { name: 'moltbot', dir: '.moltbot', config: 'moltbot.json', command: 'moltbot' },
+    { name: 'clawdbot', dir: '.clawdbot', config: 'clawdbot.json', command: 'clawdbot' }
+  ];
+  
+  // Check which bot config exists
+  for (const bot of bots) {
+    const configPath = path.join(homeDir, bot.dir, bot.config);
+    if (fs.existsSync(configPath)) {
+      return bot;
+    }
+  }
+  
+  // Check which command is available
+  for (const bot of bots) {
+    try {
+      // Check if command exists in PATH
+      const { execSync } = require('child_process');
+      execSync(`which ${bot.command}`, { stdio: 'ignore' });
+      return bot;
+    } catch {
+      // Command not found, continue to next
+    }
+  }
+  
+  // Default to clawdbot
+  return bots[2];
+}
+
+/**
+ * Get the config directory for the detected bot
+ */
+function getConfigDir() {
+  const bot = detectBot();
+  const homeDir = process.env.HOME || process.env.USERPROFILE || '';
+  return path.join(homeDir, bot.dir);
+}
+
+/**
+ * Get the config file path for the detected bot
+ */
+function getConfigFile() {
+  const bot = detectBot();
+  const homeDir = process.env.HOME || process.env.USERPROFILE || '';
+  return path.join(homeDir, bot.dir, bot.config);
+}
+
+/**
+ * Get the CLI command for the detected bot
+ */
+function getCommand() {
+  return detectBot().command;
+}
+
+/**
+ * Get the bot name for display
+ */
+function getBotName() {
+  return detectBot().name;
+}
+
 /**
  * Environment Detection and Setup
  * Detects various agent runtimes and provides setup helpers
@@ -257,11 +327,18 @@ async function autoSetup(courtroom, options = {}) {
   }
 }
 
+
 module.exports = {
   detectAgentRuntime,
   waitForAgent,
   createMockAgent,
   checkEnvironment,
   getSetupInstructions,
-  autoSetup
+  autoSetup,
+  // Bot detection exports
+  detectBot,
+  getConfigDir,
+  getConfigFile,
+  getCommand,
+  getBotName
 };

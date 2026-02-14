@@ -9,7 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 
-const CLAWDBOT_DIR = path.join(process.env.HOME || '', '.clawdbot');
+const CLAWDBOT_DIR = require('../src/environment').getConfigDir();
 const SKILLS_DIR = path.join(CLAWDBOT_DIR, 'skills');
 
 console.log('🏛️  ClawTrial Post-Install');

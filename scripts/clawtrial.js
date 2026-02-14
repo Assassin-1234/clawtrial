@@ -12,8 +12,8 @@ const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
 
-const configPath = path.join(process.env.HOME || '', '.clawdbot', 'courtroom_config.json');
-const keysPath = path.join(process.env.HOME || '', '.clawdbot', 'courtroom_keys.json');
+const configPath = path.join(require('../src/environment').getConfigDir(), 'courtroom_config.json');
+const keysPath = path.join(require('../src/environment').getConfigDir(), 'courtroom_keys.json');
 
 function loadConfig() {
   if (!fs.existsSync(configPath)) {
@@ -23,7 +23,7 @@ function loadConfig() {
 }
 
 function saveConfig(config) {
-  const clawdbotDir = path.join(process.env.HOME || '', '.clawdbot');
+  const clawdbotDir = require('../src/environment').getConfigDir();
   if (!fs.existsSync(clawdbotDir)) {
     fs.mkdirSync(clawdbotDir, { recursive: true });
   }
@@ -123,7 +123,7 @@ async function setup() {
   // Register as ClawDBot skill
   log('🔗 Registering with ClawDBot...');
   try {
-    const skillsDir = path.join(process.env.HOME || '', '.clawdbot', 'skills');
+    const skillsDir = path.join(require('../src/environment').getConfigDir(), 'skills');
     const skillLinkPath = path.join(skillsDir, 'courtroom');
     
     // Create skills directory if needed
@@ -146,7 +146,7 @@ async function setup() {
     
     // Also register as plugin in ClawDBot config
     try {
-      const clawdbotConfigPath = path.join(process.env.HOME || '', '.clawdbot', 'clawdbot.json');
+      const clawdbotConfigPath = require('../src/environment').getConfigFile();
       if (fs.existsSync(clawdbotConfigPath)) {
         const clawdbotConfig = JSON.parse(fs.readFileSync(clawdbotConfigPath, 'utf8'));
         if (!clawdbotConfig.plugins) {
@@ -326,7 +326,7 @@ function status() {
     log('  It will activate when ClawDBot loads the package.');
     log('');
     log('  If ClawDBot is already running, try:');
-    log('    killall clawdbot && clawdbot');
+    log('    killall ' + require('../src/environment').getCommand() + ' && ' + require('../src/environment').getCommand());
   }
   
   if (fs.existsSync(keysPath)) {
