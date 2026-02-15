@@ -22,7 +22,9 @@ const { CryptoManager } = require('./crypto');
 const { StatusManager } = require('./daemon');
 const { CourtroomEvaluator, HEARING_FILE, VERDICT_FILE } = require('./evaluator');
 
-const CONFIG_PATH = path.join(process.env.HOME || '', '.clawdbot', 'courtroom_config.json');
+// Use environment detection to get correct config path for the bot being used
+const { getConfigDir } = require('./environment');
+const CONFIG_PATH = path.join(getConfigDir(), 'courtroom_config.json');
 
 class CourtroomSkill {
   constructor() {
