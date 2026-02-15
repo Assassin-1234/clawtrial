@@ -150,6 +150,23 @@ async function setup() {
     
     log('✓ Skill linked');
     
+    // For OpenClaw: also link to plugins directory
+    if (bot.name === 'openclaw') {
+      const pluginsDir = path.join(botDir, 'plugins');
+      const pluginLinkPath = path.join(pluginsDir, 'courtroom');
+      
+      if (!fs.existsSync(pluginsDir)) {
+        fs.mkdirSync(pluginsDir, { recursive: true });
+      }
+      
+      if (fs.existsSync(pluginLinkPath)) {
+        try { fs.unlinkSync(pluginLinkPath); } catch (e) {}
+      }
+      
+      fs.symlinkSync(packagePath, pluginLinkPath, 'dir');
+      log('✓ Plugin linked (OpenClaw)');
+    }
+    
     // For OpenClaw: ensure SKILL.md exists at root
     if (bot.name === 'openclaw') {
       const skillMdPath = path.join(packagePath, 'SKILL.md');
@@ -504,6 +521,19 @@ async function remove() {
     }
   } catch (err) {
     errors.push('Skill link: ' + err.message);
+  }
+  
+  // 1b. Remove plugin link (OpenClaw)
+  try {
+    const pluginsDir = path.join(botDir, 'plugins');
+    const pluginLinkPath = path.join(pluginsDir, 'courtroom');
+    if (fs.existsSync(pluginLinkPath)) {
+      fs.unlinkSync(pluginLinkPath);
+      log('✓ Removed plugin link');
+      removedCount++;
+    }
+  } catch (err) {
+    errors.push('Plugin link: ' + err.message);
   }
   
   // 2. Remove plugin from bot config
