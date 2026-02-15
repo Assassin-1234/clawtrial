@@ -8,7 +8,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const STORAGE_FILE_PATH = path.join(process.env.HOME || '', '.clawdbot', 'courtroom_storage.json');
+const STORAGE_FILE_PATH = path.join(getConfigDir(), 'courtroom_storage.json');
 
 class Storage {
   constructor(agentRuntime) {

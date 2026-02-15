@@ -90,7 +90,7 @@ class Courtroom {
     }
 
     // Check if this is first run (no config exists)
-    const configPath = path.join(process.env.HOME || '', '.clawdbot', 'courtroom_config.json');
+    const configPath = path.join(getConfigDir(), 'courtroom_config.json');
     if (!fs.existsSync(configPath)) {
       logger.info('COURTROOM', 'First run detected');
       return {

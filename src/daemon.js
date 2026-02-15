@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const { logger } = require('./debug');
 
-const CLAWDBOT_DIR = path.join(process.env.HOME || '', '.clawdbot');
+const CLAWDBOT_DIR = path.join(getConfigDir());
 const STATUS_FILE = path.join(CLAWDBOT_DIR, 'courtroom_status.json');
 const CONVERSATION_LOG = path.join(CLAWDBOT_DIR, 'courtroom_conversations.jsonl');
 

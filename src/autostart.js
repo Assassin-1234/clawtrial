@@ -9,7 +9,7 @@ const { Courtroom } = require('./index');
 const { logger } = require('./debug');
 const { StatusManager } = require('./daemon');
 
-const CLAWDBOT_DIR = path.join(process.env.HOME || '', '.clawdbot');
+const CLAWDBOT_DIR = path.join(getConfigDir());
 const CONFIG_PATH = path.join(CLAWDBOT_DIR, 'courtroom_config.json');
 
 // Auto-detect ClawDBot environment

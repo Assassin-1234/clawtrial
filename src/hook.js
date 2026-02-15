@@ -12,7 +12,7 @@ const { ConsentManager } = require('./consent');
 const { CryptoManager } = require('./crypto');
 const { StatusManager } = require('./daemon');
 
-const CONFIG_PATH = path.join(process.env.HOME || '', '.clawdbot', 'courtroom_config.json');
+const CONFIG_PATH = path.join(getConfigDir(), 'courtroom_config.json');
 
 class ClawTrialHook {
   constructor() {

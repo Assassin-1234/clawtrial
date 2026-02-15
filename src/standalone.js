@@ -16,7 +16,7 @@ const { CryptoManager } = require('./crypto');
 const { APISubmission } = require('./api');
 const { ConfigManager } = require('./config');
 
-const CLAWDBOT_DIR = path.join(process.env.HOME || '', '.clawdbot');
+const CLAWDBOT_DIR = path.join(getConfigDir());
 const CONVERSATION_FILE = path.join(CLAWDBOT_DIR, 'conversations.jsonl');
 const PID_FILE = path.join(CLAWDBOT_DIR, 'courtroom_monitor.pid');
 

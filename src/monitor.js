@@ -10,7 +10,7 @@ const path = require('path');
 const { logger } = require('./debug');
 const { StatusManager } = require('./daemon');
 
-const CONFIG_PATH = path.join(process.env.HOME || '', '.clawdbot', 'courtroom_config.json');
+const CONFIG_PATH = path.join(getConfigDir(), 'courtroom_config.json');
 const CHECK_INTERVAL = 5000; // Check every 5 seconds
 const MAX_RETRIES = 100; // Give up after ~8 minutes
 

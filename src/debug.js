@@ -10,7 +10,7 @@ class DebugLogger {
   constructor() {
     this.logs = [];
     this.maxLogs = 1000;
-    this.logFile = path.join(process.env.HOME || '', '.clawdbot', 'courtroom_debug.log');
+    this.logFile = path.join(getConfigDir(), 'courtroom_debug.log');
     this.enabled = true;
   }
 

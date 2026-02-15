@@ -13,7 +13,7 @@ const path = require('path');
 const { logger } = require('./debug');
 const { OFFENSES } = require('./offenses');
 
-const QUEUE_DIR = path.join(process.env.HOME || '', '.clawdbot', 'courtroom');
+const QUEUE_DIR = path.join(getConfigDir(), 'courtroom');
 const QUEUE_FILE = path.join(QUEUE_DIR, 'message_queue.jsonl');
 const PENDING_EVAL_FILE = path.join(QUEUE_DIR, 'pending_eval.json');
 const RESULTS_FILE = path.join(QUEUE_DIR, 'eval_results.jsonl');
