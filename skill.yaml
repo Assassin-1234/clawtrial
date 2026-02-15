@@ -16,6 +16,20 @@ metadata:
         bins:
           - clawtrial
         label: "Install ClawTrial"
+  openclaw:
+    emoji: "🏛️"
+    autoLoad: true
+    onMessage: onMessage
+    requires:
+      config:
+        - courtroom.consent
+    install:
+      - id: clawtrial
+        kind: npm
+        package: "@clawtrial/courtroom"
+        bins:
+          - clawtrial
+        label: "Install ClawTrial"
 ---
 
 # ClawTrial - AI Courtroom
