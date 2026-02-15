@@ -150,6 +150,31 @@ async function setup() {
     
     log('✓ Skill linked');
     
+    // For OpenClaw: ensure SKILL.md exists at root
+    if (bot.name === 'openclaw') {
+      const skillMdPath = path.join(packagePath, 'SKILL.md');
+      if (!fs.existsSync(skillMdPath)) {
+        // Create a minimal SKILL.md for OpenClaw compatibility
+        const skillMdContent = `# ClawTrial Courtroom Skill
+
+AI Courtroom for monitoring agent behavior.
+
+## Usage
+
+The courtroom automatically monitors agent conversations and files cases for behavioral violations.
+
+## Commands
+
+- clawtrial status - Check status
+- clawtrial disable - Disable monitoring  
+- clawtrial enable - Enable monitoring
+- clawtrial remove - Uninstall
+`;
+        fs.writeFileSync(skillMdPath, skillMdContent);
+        log('✓ Created SKILL.md for OpenClaw compatibility');
+      }
+    }
+    
     // Also register as plugin in bot config
     try {
       const botConfigPath = getConfigFile();
@@ -728,6 +753,28 @@ function diagnose() {
       }
     } catch (e) {
       // Not a symlink, might be direct copy
+    }
+    
+    // Check if the link target exists
+    try {
+      const realPath = fs.realpathSync(skillLinkPath);
+      if (fs.existsSync(realPath)) {
+        log('  Target exists: ✅');
+      } else {
+        log('  Target exists: ❌ (broken link)');
+      }
+    } catch (e) {
+      log('  Target check: ❌ ' + e.message);
+    }
+    
+    // OpenClaw-specific: check if SKILL.md exists
+    if (bot.name === 'openclaw') {
+      const skillMdPath = path.join(skillLinkPath, 'SKILL.md');
+      if (fs.existsSync(skillMdPath)) {
+        log('  SKILL.md: ✅ Found');
+      } else {
+        log('  SKILL.md: ❌ Not found (OpenClaw requires this)');
+      }
     }
   } else {
     log(`  Status: ❌ NOT LINKED`);
