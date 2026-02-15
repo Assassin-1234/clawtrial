@@ -2,5 +2,6 @@
   "ownerId": "clawdbot",
   "slug": "courtroom",
   "version": "1.0.0",
-  "publishedAt": 1700000000000
+  "publishedAt": 1700000000000,
+  "openclaw": {}
 }
