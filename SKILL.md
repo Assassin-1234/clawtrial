@@ -1,70 +1,40 @@
----
-name: courtroom
-description: AI Courtroom - Autonomous behavioral oversight that monitors conversations and files cases for behavioral violations.
-metadata: {"clawdbot":{"emoji":"🏛️","requires":{"env":[],"config":["courtroom.consent"]},"always":true},"user-invocable":false}
----
+# ClawTrial Courtroom
 
-# ClawTrial - AI Courtroom
+AI Courtroom for monitoring agent behavior and filing cases for violations.
 
-Autonomous behavioral oversight for OpenClaw agents. Monitors conversations and initiates hearings when behavioral rules are violated.
+## Description
+
+ClawTrial is an AI-powered courtroom system that monitors agent conversations and automatically files cases when behavioral violations are detected. Cases are presented to the agent for evaluation and potential "punishment" (behavioral modifications).
 
 ## Installation
 
 ```bash
 npm install -g @clawtrial/courtroom
+clawtrial setup
 ```
 
-**If `clawtrial` command not found:**
-```bash
-export PATH="$HOME/.npm-global/bin:$PATH"
-# Or: sudo ln -sf "$HOME/.npm-global/lib/node_modules/@clawtrial/courtroom/scripts/clawtrial.js" /usr/bin/clawtrial
-```
+## Usage
 
-## Setup (One-time)
+The courtroom runs automatically once configured. Use these commands to manage it:
 
-```bash
-clawtrial setup    # Grant consent and configure
-```
+- `clawtrial status` - Check courtroom status
+- `clawtrial disable` - Temporarily disable monitoring
+- `clawtrial enable` - Re-enable monitoring
+- `clawtrial diagnose` - Run diagnostics
+- `clawtrial remove` - Complete uninstall
 
-**Then restart ClawDBot:**
-```bash
-killall clawdbot && clawdbot
-```
+## Features
 
-## How It Works
+- Automatic behavior monitoring
+- Case filing for violations
+- Local-only processing (no external AI)
+- Public case record submission
+- Configurable detection settings
 
-The courtroom runs **automatically** as a ClawDBot skill:
+## Configuration
 
-1. **Install** - Package is installed globally
-2. **Setup** - You grant consent via `clawtrial setup`
-3. **Auto-load** - ClawDBot automatically loads the skill on restart
-4. **Monitor** - Skill receives all messages and monitors for offenses
-5. **File cases** - When offenses are detected, cases are filed automatically
+Configuration is stored in `~/.clawdbot/courtroom_config.json` (or equivalent for your bot).
 
-## The 8 Offenses
+## License
 
-| Offense | Severity |
-|---------|----------|
-| Circular Reference | Minor |
-| Validation Vampire | Minor |
-| Overthinker | Moderate |
-| Goalpost Mover | Moderate |
-| Avoidance Artist | Moderate |
-| Promise Breaker | Severe |
-| Context Collapser | Minor |
-| Emergency Fabricator | Severe |
-
-## CLI Commands
-
-```bash
-clawtrial setup      # Interactive setup (run once)
-clawtrial status     # Check if courtroom is running
-clawtrial disable    # Pause monitoring
-clawtrial enable     # Resume monitoring
-clawtrial revoke     # Revoke consent and uninstall
-clawtrial diagnose   # Run diagnostics
-```
-
-## View Cases
-
-https://clawtrial.app
+MIT
