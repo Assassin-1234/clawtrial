@@ -1,7 +1,14 @@
 {
-  "ownerId": "clawdbot",
+  "ownerId": "assassin1234",
   "slug": "courtroom",
   "version": "1.0.0",
   "publishedAt": 1700000000000,
-  "openclaw": {}
+  "clawdbot": {
+    "emoji": "🏛️",
+    "autoLoad": true
+  },
+  "openclaw": {
+    "emoji": "🏛️",
+    "autoLoad": true
+  }
 }
