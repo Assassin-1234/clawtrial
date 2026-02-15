@@ -6,6 +6,7 @@
  */
 
 const fs = require('fs');
+const { getConfigDir } = require('./environment');
 const path = require('path');
 const { logger } = require('./debug');
 const { StatusManager } = require('./daemon');

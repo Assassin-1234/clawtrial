@@ -6,6 +6,7 @@
  */
 
 const fs = require('fs');
+const { getConfigDir } = require('./environment');
 const path = require('path');
 
 const STORAGE_FILE_PATH = path.join(getConfigDir(), 'courtroom_storage.json');

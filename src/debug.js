@@ -4,6 +4,7 @@
  */
 
 const fs = require('fs');
+const { getConfigDir } = require('./environment');
 const path = require('path');
 
 class DebugLogger {
