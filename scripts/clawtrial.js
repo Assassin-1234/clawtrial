@@ -507,7 +507,70 @@ function diagnose() {
     log(`\nKeys: ❌ Not found`);
   }
   
+  // Check skill linking
+  const { detectBot, getConfigDir } = require('../src/environment');
+  const bot = detectBot();
+  const botDir = getConfigDir();
+  
+  log(`\nBot Detection:`);
+  log(`  Detected: ${bot.name} ✅`);
+  log(`  Config Dir: ${botDir}`);
+  
+  // Check if skill is linked
+  const skillsDir = path.join(botDir, 'skills');
+  const skillLinkPath = path.join(skillsDir, 'courtroom');
+  const isLinked = fs.existsSync(skillLinkPath);
+  
+  log(`\nSkill Linking:`);
+  if (isLinked) {
+    log(`  Status: ✅ Linked`);
+    log(`  Path: ${skillLinkPath}`);
+    try {
+      const stats = fs.lstatSync(skillLinkPath);
+      if (stats.isSymbolicLink()) {
+        const target = fs.readlinkSync(skillLinkPath);
+        log(`  Target: ${target}`);
+      }
+    } catch (e) {
+      // Not a symlink, might be direct copy
+    }
+  } else {
+    log(`  Status: ❌ NOT LINKED`);
+    log(`  Expected: ${skillLinkPath}`);
+    log(`\n  🔧 FIX: Run these commands:`);
+    log(`     mkdir -p ${skillsDir}`);
+    log(`     ln -s $(npm root -g)/@clawtrial/courtroom ${skillLinkPath}`);
+    log(`     ${bot.command} gateway restart`);
+  }
+  
+  // Check if plugin is enabled in config
+  const botConfigPath = path.join(botDir, `${bot.name}.json`);
+  let pluginEnabled = false;
+  
+  if (fs.existsSync(botConfigPath)) {
+    try {
+      const botConfig = JSON.parse(fs.readFileSync(botConfigPath, 'utf8'));
+      pluginEnabled = botConfig.plugins?.entries?.courtroom?.enabled === true;
+    } catch (e) {
+      // Config parse error
+    }
+  }
+  
+  log(`\nPlugin Status:`);
+  if (pluginEnabled) {
+    log(`  Status: ✅ Enabled in ${bot.name}.json`);
+  } else {
+    log(`  Status: ❌ NOT ENABLED`);
+    log(`\n  🔧 FIX: Add this to ${botConfigPath}:`);
+    log(`     "plugins": {`);
+    log(`       "entries": {`);
+    log(`         "courtroom": { "enabled": true }`);
+    log(`       }`);
+    log(`     }`);
+  }
+  
   // Check if courtroom is running
+
   const { getCourtroomStatus } = require('../src/daemon');
   const runtimeStatus = getCourtroomStatus();
   
