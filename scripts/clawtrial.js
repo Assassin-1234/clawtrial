@@ -120,15 +120,21 @@ async function setup() {
   saveConfig(config);
   log('✓ Configuration saved');
 
-  // Register as ClawDBot skill
-  log('🔗 Registering with ClawDBot...');
+  // Detect which bot we're using
+  const { detectBot, getConfigDir, getConfigFile } = require('../src/environment');
+  const bot = detectBot();
+  const botDir = getConfigDir();
+  
+  // Register as skill
+  log('🔗 Registering skill...');
   try {
-    const skillsDir = path.join(require('../src/environment').getConfigDir(), 'skills');
+    const skillsDir = path.join(botDir, 'skills');
     const skillLinkPath = path.join(skillsDir, 'courtroom');
     
     // Create skills directory if needed
     if (!fs.existsSync(skillsDir)) {
       fs.mkdirSync(skillsDir, { recursive: true });
+      log('✓ Created skills directory');
     }
     
     // Remove old link if exists
@@ -142,33 +148,45 @@ async function setup() {
     // Create symlink
     fs.symlinkSync(packagePath, skillLinkPath, 'dir');
     
-    log('✓ Registered as ClawDBot skill');
+    log('✓ Skill linked');
     
-    // Also register as plugin in ClawDBot config
+    // Also register as plugin in bot config
     try {
-      const clawdbotConfigPath = require('../src/environment').getConfigFile();
-      if (fs.existsSync(clawdbotConfigPath)) {
-        const clawdbotConfig = JSON.parse(fs.readFileSync(clawdbotConfigPath, 'utf8'));
-        if (!clawdbotConfig.plugins) {
-          clawdbotConfig.plugins = { entries: {} };
-        }
-        if (!clawdbotConfig.plugins.entries) {
-          clawdbotConfig.plugins.entries = {};
-        }
-        clawdbotConfig.plugins.entries.courtroom = {
-          enabled: true
-        };
-        fs.writeFileSync(clawdbotConfigPath, JSON.stringify(clawdbotConfig, null, 2));
-        log('✓ Registered as ClawDBot plugin');
+      const botConfigPath = getConfigFile();
+      
+      // Create bot config directory if needed
+      const botConfigDir = require('path').dirname(botConfigPath);
+      if (!fs.existsSync(botConfigDir)) {
+        fs.mkdirSync(botConfigDir, { recursive: true });
       }
+      
+      // Load or create bot config
+      let botConfig = {};
+      if (fs.existsSync(botConfigPath)) {
+        botConfig = JSON.parse(fs.readFileSync(botConfigPath, 'utf8'));
+      }
+      
+      // Ensure plugins structure exists
+      if (!botConfig.plugins) {
+        botConfig.plugins = {};
+      }
+      if (!botConfig.plugins.entries) {
+        botConfig.plugins.entries = {};
+      }
+      
+      // Enable courtroom plugin
+      botConfig.plugins.entries.courtroom = { enabled: true };
+      
+      fs.writeFileSync(botConfigPath, JSON.stringify(botConfig, null, 2));
+      log('✓ Plugin enabled in ' + bot.name + ' config');
     } catch (pluginErr) {
-      log('⚠️  Could not register plugin: ' + pluginErr.message);
+      log('⚠️  Could not enable plugin: ' + pluginErr.message);
     }
     
-    log('  Restart ClawDBot to activate monitoring');
+    log('  Restart ' + bot.name + ' to activate: killall ' + bot.command + ' && ' + bot.command);
   } catch (err) {
-    log('⚠️  Could not auto-register: ' + err.message);
-    log('   You may need to restart ClawDBot manually.');
+    log('⚠️  Could not register: ' + err.message);
+    log('   You may need to link manually.');
   }
 
   // Generate keys
