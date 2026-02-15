@@ -431,6 +431,183 @@ async function revoke() {
   }
 }
 
+// Remove command - completely uninstall and remove all traces
+async function remove() {
+  log('\n🏛️  ClawTrial Complete Removal\n');
+  log('⚠️  This will PERMANENTLY delete:');
+  log('   • All configuration files');
+  log('   • Cryptographic keys');
+  log('   • Debug logs and status files');
+  log('   • Skill link from bot');
+  log('   • Plugin entry from bot config');
+  log('   • Cron jobs\n');
+  log('   This CANNOT be undone!\n');
+  
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+
+  const answer = await new Promise((resolve) => {
+    rl.question('Type "REMOVE" to completely uninstall: ', resolve);
+  });
+
+  rl.close();
+
+  if (answer !== 'REMOVE') {
+    log('\n❌ Removal cancelled.\n');
+    return;
+  }
+
+  log('\n🗑️  Removing ClawTrial...\n');
+  
+  const { detectBot, getConfigDir, getConfigFile } = require('../src/environment');
+  const bot = detectBot();
+  const botDir = getConfigDir();
+  
+  let removedCount = 0;
+  let errors = [];
+  
+  // 1. Remove skill link
+  try {
+    const skillsDir = path.join(botDir, 'skills');
+    const skillLinkPath = path.join(skillsDir, 'courtroom');
+    if (fs.existsSync(skillLinkPath)) {
+      fs.unlinkSync(skillLinkPath);
+      log('✓ Removed skill link');
+      removedCount++;
+    }
+  } catch (err) {
+    errors.push('Skill link: ' + err.message);
+  }
+  
+  // 2. Remove plugin from bot config
+  try {
+    const botConfigPath = getConfigFile();
+    if (fs.existsSync(botConfigPath)) {
+      const botConfig = JSON.parse(fs.readFileSync(botConfigPath, 'utf8'));
+      if (botConfig.plugins?.entries?.courtroom) {
+        delete botConfig.plugins.entries.courtroom;
+        fs.writeFileSync(botConfigPath, JSON.stringify(botConfig, null, 2));
+        log('✓ Removed plugin from bot config');
+        removedCount++;
+      }
+    }
+  } catch (err) {
+    errors.push('Plugin config: ' + err.message);
+  }
+  
+  // 3. Remove courtroom config
+  try {
+    if (fs.existsSync(configPath)) {
+      fs.unlinkSync(configPath);
+      log('✓ Removed courtroom config');
+      removedCount++;
+    }
+  } catch (err) {
+    errors.push('Config: ' + err.message);
+  }
+  
+  // 4. Remove keys
+  try {
+    if (fs.existsSync(keysPath)) {
+      fs.unlinkSync(keysPath);
+      log('✓ Removed cryptographic keys');
+      removedCount++;
+    }
+  } catch (err) {
+    errors.push('Keys: ' + err.message);
+  }
+  
+  // 5. Remove debug logs
+  try {
+    const debugPath = path.join(botDir, 'courtroom_debug.log');
+    if (fs.existsSync(debugPath)) {
+      fs.unlinkSync(debugPath);
+      log('✓ Removed debug logs');
+      removedCount++;
+    }
+  } catch (err) {
+    errors.push('Debug logs: ' + err.message);
+  }
+  
+  // 6. Remove status file
+  try {
+    const statusPath = path.join(botDir, 'courtroom_status.json');
+    if (fs.existsSync(statusPath)) {
+      fs.unlinkSync(statusPath);
+      log('✓ Removed status file');
+      removedCount++;
+    }
+  } catch (err) {
+    errors.push('Status file: ' + err.message);
+  }
+  
+  // 7. Remove pending eval file
+  try {
+    const pendingPath = path.join(botDir, 'pending_eval.json');
+    if (fs.existsSync(pendingPath)) {
+      fs.unlinkSync(pendingPath);
+      log('✓ Removed pending evaluations');
+      removedCount++;
+    }
+  } catch (err) {
+    errors.push('Pending evals: ' + err.message);
+  }
+  
+  // 8. Remove cron jobs
+  try {
+    const { execSync } = require('child_process');
+    
+    // Remove from crontab
+    try {
+      const currentCrontab = execSync('crontab -l 2>/dev/null || echo ""', { encoding: 'utf8' });
+      const filteredCrontab = currentCrontab
+        .split('\n')
+        .filter(line => !line.includes('clawtrial') && !line.includes('courtroom'))
+        .join('\n');
+      
+      if (currentCrontab !== filteredCrontab) {
+        execSync(`echo "${filteredCrontab}" | crontab -`);
+        log('✓ Removed cron jobs');
+        removedCount++;
+      }
+    } catch (e) {
+      // No crontab or no entries
+    }
+  } catch (err) {
+    errors.push('Cron jobs: ' + err.message);
+  }
+  
+  // Summary
+  log('');
+  if (removedCount > 0) {
+    log(`✅ Removed ${removedCount} items`);
+  } else {
+    log('ℹ️  Nothing to remove');
+  }
+  
+  if (errors.length > 0) {
+    log('\n⚠️  Some items could not be removed:');
+    errors.forEach(err => log('   • ' + err));
+  }
+  
+  log('\n╔════════════════════════════════════════════════════════════╗');
+  log('║              🗑️  REMOVAL COMPLETE                          ║');
+  log('╠════════════════════════════════════════════════════════════╣');
+  log('║                                                            ║');
+  log('║  ClawTrial has been completely removed.                    ║');
+  log('║                                                            ║');
+  log('║  To uninstall the package:                                 ║');
+  log('║    npm uninstall -g @clawtrial/courtroom                   ║');
+  log('║                                                            ║');
+  log('║  Remember to restart your bot:                             ║');
+  log(`║    killall ${bot.command} && ${bot.command}                           ║`);
+  log('║                                                            ║');
+  log('╚════════════════════════════════════════════════════════════╝\n');
+}
+
+
 // Debug command
 function debug(subcommand) {
   const debugPath = path.join(process.env.HOME || '', '.clawdbot', 'courtroom_debug.log');
@@ -633,7 +810,8 @@ function help() {
   log('  status             - Check courtroom status');
   log('  disable            - Temporarily disable monitoring');
   log('  enable             - Re-enable monitoring');
-  log('  revoke             - Revoke consent and uninstall');
+  log('  revoke             - Revoke consent (keeps files)');
+  log('  remove             - Complete uninstall (removes everything)');
   log('  debug [full|clear] - View or clear debug logs');
   log('  diagnose           - Run diagnostics');
   log('  help               - Show this help message');
@@ -665,6 +843,9 @@ async function main() {
       break;
     case 'revoke':
       await revoke();
+      break;
+    case 'remove':
+      await remove();
       break;
     case 'debug':
       debug(subcommand);
