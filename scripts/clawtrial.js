@@ -771,6 +771,15 @@ function diagnose() {
   const skillLinkPath = path.join(skillsDir, 'courtroom');
   const isLinked = fs.existsSync(skillLinkPath);
   
+  // For OpenClaw: also check plugins directory
+  let pluginLinkPath = null;
+  let isPluginLinked = false;
+  if (bot.name === 'openclaw') {
+    const pluginsDir = path.join(botDir, 'plugins');
+    pluginLinkPath = path.join(pluginsDir, 'courtroom');
+    isPluginLinked = fs.existsSync(pluginLinkPath);
+  }
+  
   log(`\nSkill Linking:`);
   if (isLinked) {
     log(`  Status: ✅ Linked`);
@@ -804,6 +813,13 @@ function diagnose() {
         log('  SKILL.md: ✅ Found');
       } else {
         log('  SKILL.md: ❌ Not found (OpenClaw requires this)');
+      }
+      
+      // Check plugins directory too
+      if (isPluginLinked) {
+        log('  Plugins dir: ✅ Linked');
+      } else {
+        log('  Plugins dir: ❌ Not linked');
       }
     }
   } else {
