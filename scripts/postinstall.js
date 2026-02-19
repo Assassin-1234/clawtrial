@@ -3,6 +3,10 @@
 /**
  * Post-install script for ClawTrial
  * Automatically configures the skill for the detected bot
+ * 
+ * Handles both:
+ * - NPM install: Links from npm global to bot's skills directory
+ * - ClawHub install: Links from workspace/skills to skills directory
  */
 
 const fs = require('fs');
@@ -50,8 +54,14 @@ if (!fs.existsSync(usrBinPath)) {
 if (detectedBot) {
   console.log(`✓ Detected: ${detectedBot.name}`);
   
-  const skillsDir = path.join(homeDir, detectedBot.dir, 'skills');
+  const botDir = path.join(homeDir, detectedBot.dir);
+  const skillsDir = path.join(botDir, 'skills');
   const skillLinkPath = path.join(skillsDir, 'clawtrial');
+  
+  // Check if we're in ClawHub workspace or npm global
+  const isClawHubInstall = packagePath.includes('workspace/skills') || 
+                           packagePath.includes('.openclaw/workspace');
+  const isNpmInstall = packagePath.includes('node_modules');
   
   try {
     // Create skills directory if needed
@@ -69,10 +79,16 @@ if (detectedBot) {
     fs.symlinkSync(packagePath, skillLinkPath, 'dir');
     console.log(`✓ Linked skill: ${skillLinkPath}`);
     
+    if (isClawHubInstall) {
+      console.log('  (Installed via ClawHub)');
+    } else if (isNpmInstall) {
+      console.log('  (Installed via NPM)');
+    }
+    
     // Enable in bot config if OpenClaw
     if (detectedBot.name === 'openclaw') {
       try {
-        const botConfigPath = path.join(homeDir, detectedBot.dir, detectedBot.config);
+        const botConfigPath = path.join(botDir, detectedBot.config);
         if (fs.existsSync(botConfigPath)) {
           const botConfig = JSON.parse(fs.readFileSync(botConfigPath, 'utf8'));
           
